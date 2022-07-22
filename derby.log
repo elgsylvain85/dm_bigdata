@@ -1,6 +1,6 @@
 ----------------------------------------------------------------
-Thu Jul 21 20:22:16 WAT 2022:
-Booting Derby version The Apache Software Foundation - Apache Derby - 10.14.2.0 - (1828579): instance a816c00e-0182-2235-ead0-000004a806b8 
+Fri Jul 22 15:27:20 WAT 2022:
+Booting Derby version The Apache Software Foundation - Apache Derby - 10.14.2.0 - (1828579): instance a816c00e-0182-264e-3fc0-000003ac8c78 
 on database directory /Users/elgsylvain85/dev/dm_bigdata/dmbigdatadb with class loader jdk.internal.loader.ClassLoaders$AppClassLoader@67424e82 
 Loaded from file:/usr/local/spark-3.2.1-bin-hadoop3.2/jars/derby-10.14.2.0.jar
 java.vendor=Homebrew
@@ -12,8 +12,8 @@ os.version=12.4
 derby.system.home=null
 Database Class Loader started - derby.database.classpath=''
 ----------------------------------------------------------------
-Thu Jul 21 20:22:56 WAT 2022:
-Booting Derby version The Apache Software Foundation - Apache Derby - 10.14.2.0 - (1828579): instance 286cc01e-0182-2235-ead0-000004a806b8 
+Fri Jul 22 15:33:14 WAT 2022:
+Booting Derby version The Apache Software Foundation - Apache Derby - 10.14.2.0 - (1828579): instance 286cc01e-0182-264e-3fc0-000003ac8c78 
 on database directory /Users/elgsylvain85/dev/dm_bigdata/metastore_db with class loader jdk.internal.loader.ClassLoaders$AppClassLoader@67424e82 
 Loaded from file:/usr/local/spark-3.2.1-bin-hadoop3.2/jars/derby-10.14.2.0.jar
 java.vendor=Homebrew
