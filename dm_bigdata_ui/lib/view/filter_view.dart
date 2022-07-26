@@ -180,7 +180,7 @@ class _FilterViewState extends State<FilterView> {
       widget.dataLoading = true;
     });
 
-    widget._structureService.tablesNames().then((value) {
+    widget._structureService.tablesImported().then((value) {
       widget.tablesNames.clear();
 
       // setState(() {

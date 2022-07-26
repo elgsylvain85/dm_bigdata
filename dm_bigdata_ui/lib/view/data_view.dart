@@ -86,25 +86,37 @@ class _DataViewState extends State<DataView> {
                       ),
                       /* filter zone only if expression exist */
                       widget.filterExpr != null && widget.filterExpr!.isNotEmpty
-                          ? Row(
-                              children: [
-                                SelectableText(
-                                  "Filter : ${widget._utilities.cleanFilterExpr(widget.filterExpr)}",
-                                ),
-                                IconButton(
-                                    onPressed: () {
-                                      clearFilter();
-                                    },
-                                    icon: const Icon(
-                                      Icons.clear,
-                                      color: Colors.red,
-                                    ))
-                              ],
+                          ? SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: [
+                                  SelectableText(
+                                    "Filter : ${widget._utilities.cleanFilterExpr(widget.filterExpr)}",
+                                  ),
+                                  IconButton(
+                                      onPressed: () {
+                                        clearFilter();
+                                      },
+                                      icon: const Icon(
+                                        Icons.clear,
+                                        color: Colors.red,
+                                      ))
+                                ],
+                              ),
                             )
                           : const SizedBox.shrink(),
                       /* rows status */
                       SelectableText(
                           "Rows : ${widget.rowsShowed} / ${widget.totalRows}"),
+                      ElevatedButton(
+                        child: const Text(
+                          "Export result",
+                          style: Utilities.itemStyle,
+                        ),
+                        onPressed: () {
+                          exportResult();
+                        },
+                      ),
                       SizedBox(
                         height: tableHeight < 450
                             ? Utilities.fieldHeight * 15
@@ -164,7 +176,7 @@ class _DataViewState extends State<DataView> {
                           },
                           icon: const Icon(Icons.refresh),
                           label: const Text(
-                              "No data available. Please use Search form or wait then refresh")));
+                              "No data available. Please wait then refresh or use Search form")));
                 }
               })
         ],
@@ -173,6 +185,11 @@ class _DataViewState extends State<DataView> {
   }
 
   Future<void> loadData() async {
+    setState(() {
+      widget.rowsShowed = 0;
+      widget.totalRows = 0;
+    });
+
     widget._webAPIService
         .data(
             // widget.fileName,
@@ -272,5 +289,20 @@ class _DataViewState extends State<DataView> {
   void clearFilter() {
     widget.filterExpr = null;
     refreshData();
+  }
+
+  Future<void> exportResult() async {
+    widget._webAPIService
+        .exportResult(widget.filterExpr, widget.offset, widget.limit)
+        .then((_) {
+      var snackBar = const SnackBar(
+          content: Text("Operation initiated, please check Status form"));
+      ScaffoldMessenger.of(context).showSnackBar(snackBar);
+    }).catchError((error, stackTrace) {
+      log("${error?.toString()}", stackTrace: stackTrace);
+
+      var snackBar = SnackBar(content: Text("${error?.toString()}"));
+      ScaffoldMessenger.of(context).showSnackBar(snackBar);
+    });
   }
 }

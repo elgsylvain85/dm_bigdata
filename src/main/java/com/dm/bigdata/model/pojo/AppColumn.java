@@ -11,7 +11,6 @@ import javax.persistence.Id;
 import lombok.Data;
 
 @Entity
-// @Table(name = "appschema")
 @Data
 public class AppColumn {
 

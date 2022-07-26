@@ -28,15 +28,29 @@
 - Filtre, choix sur plusieurs fichiers à la fois
 - Aperçu des données avant Importation
 
-## 1.0.0 : 19 Juillet 2022
+## 0.3.0 : 19 Juillet 2022
 
 - 1.0.0 release
 
-## 1.0.1 : 
+## 0.3.1 : 
 
 - Correction bug à l'importation
 
-## 1.1.0 : 21 Juillet 2022
+## 0.4.0 : 21 Juillet 2022
 
 - ajout option "Exclude header" à l'importation
 - ouverture d'un port d'ecoute
+
+## 0.5.0 : 25 Juillet 2022
+
+- Mise en place du cache des donnees (jointures) au demarage, importation et mise à jour de la structure
+- Fonction export
+
+## 0.5.1 : 27 Juillet 2022
+
+- Persister données jointures directement apres importation
+- Travailler sur une table unique comprennant les donnees des jointures
+- Option delimiter avant importation
+- Correction bug saut champs vide
+- Revision & correction du code
+

@@ -51,19 +51,19 @@ class _SettingViewState extends State<SettingView> {
 
     item = const DropdownMenuItem<String?>(
       value: null,
-      child: Text("Choose Index"),
+      child: Text("Clear all"),
     );
 
     tablesNamesItems.add(item);
 
-    for (var e in widget.tablesNames) {
-      item = DropdownMenuItem<String?>(
-        value: e,
-        child: Text(e),
-      );
+    // for (var e in widget.tablesNames) {
+    //   item = DropdownMenuItem<String?>(
+    //     value: e,
+    //     child: Text(e),
+    //   );
 
-      tablesNamesItems.add(item);
-    }
+    //   tablesNamesItems.add(item);
+    // }
 
     /* Items app columns */
 
@@ -273,11 +273,11 @@ class _SettingViewState extends State<SettingView> {
                                     .currentState
                                     ?.value;
 
-                                if (tableName != null) {
-                                  dropTable(tableName);
-                                } else {
-                                  log("value is null");
-                                }
+                                // if (tableName != null) {
+                                dropTable(tableName);
+                                // } else {
+                                //   log("value is null");
+                                // }
                               },
                               child: const Text("Delete",
                                   style: Utilities.itemStyle),
@@ -300,7 +300,7 @@ class _SettingViewState extends State<SettingView> {
       widget.dataLoading = true;
     });
 
-    widget._webAPIService.tablesNames().then((value) {
+    widget._webAPIService.tablesImported().then((value) {
       widget.tablesNames.clear();
 
       // setState(() {

@@ -1,7 +1,9 @@
 package com.dm.bigdata.controller;
 
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.logging.Level;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.dm.bigdata.model.pojo.TableImported;
 import com.dm.bigdata.model.service.AppColumnService;
 import com.dm.bigdata.model.service.SparkService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -36,7 +39,8 @@ public class WebAPIController {
 
     @GetMapping(value = "/filestructure")
     public ResponseEntity<?> fileStructure(@RequestParam String filePath,
-            @RequestParam(required = false, defaultValue = ",") String delimiter, @RequestParam(required = false, defaultValue = "false") Boolean excludeHeader) {
+            @RequestParam(required = false, defaultValue = ",") String delimiter,
+            @RequestParam(required = false, defaultValue = "false") Boolean excludeHeader) {
 
         try {
 
@@ -102,11 +106,20 @@ public class WebAPIController {
         }
     }
 
-    @GetMapping(value = "/tablesnames")
-    public ResponseEntity<?> tablesNames() {
+    @GetMapping(value = "/tablesimported")
+    public ResponseEntity<?> tablesImported() {
 
         try {
-            var data = this.sparkService.tablesNames();
+
+            var data = this.sparkService.tablesImported().stream().map(
+                    new Function<TableImported, String>() {
+
+                        @Override
+                        public String apply(TableImported t) {
+                            return t.getTableName();
+                        }
+
+                    }).collect(Collectors.toList());
 
             return ResponseEntity.ok(data);
         } catch (Exception ex) {
@@ -128,7 +141,7 @@ public class WebAPIController {
 
             new Thread(() -> {
                 try {
-                    this.sparkService.importFile(filePath, tableName, structure, delimiter, excludeHeader);
+                    this.sparkService.prepareImportFile(filePath, tableName, structure, delimiter, excludeHeader);
                 } catch (Exception ex) {
                     LOGGER.log(Level.SEVERE, "Job import Error", ex);
                 }
@@ -150,9 +163,34 @@ public class WebAPIController {
         try {
 
             // var data = this.sparkService.data(tableName, offset, limit, filter);
-            var data = this.sparkService.data(offset, limit, filter);
+            var data = this.sparkService.dataAsMap(offset, limit, filter);
 
             return ResponseEntity.ok(data);
+        } catch (Exception ex) {
+            LOGGER.log(Level.SEVERE, ex.getMessage(), ex);
+
+            return ResponseEntity.badRequest().body(ex.getMessage());
+        }
+    }
+
+    @GetMapping(value = "/exportresult")
+    public ResponseEntity<?> exportResult(
+            @RequestParam(required = false) String filter) {
+
+        try {
+
+            /* run export as independent job (thread) */
+
+            new Thread(() -> {
+                try {
+                    this.sparkService.exportResult(filter);
+                } catch (Exception ex) {
+                    LOGGER.log(Level.SEVERE, "Job export Error", ex);
+                }
+            }).start();
+
+            return ResponseEntity.ok().build();
+
         } catch (Exception ex) {
             LOGGER.log(Level.SEVERE, ex.getMessage(), ex);
 
@@ -204,7 +242,7 @@ public class WebAPIController {
             @RequestParam String columnName, @RequestParam Boolean value) {
         try {
 
-            this.appColumnService.updateJoin(columnName, value);
+            this.sparkService.updateJoin(columnName, value);
 
             return ResponseEntity.ok().build();
         } catch (Exception ex) {

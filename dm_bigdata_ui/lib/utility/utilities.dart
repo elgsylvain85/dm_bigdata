@@ -17,7 +17,7 @@ class Utilities {
 
   static const formWidth = 440.0;
 
-  static const limitDataLoading = 2500;
+  static const limitDataLoading = 5000;
 
   static const defaultCellEmptyValue = "...";
 

@@ -21,8 +21,8 @@ class WebAPIService {
   WebAPIService._internal();
 
   /// request and get all files names loaded
-  Future<List<String>> tablesNames() async {
-    var url = Uri.parse("${Utilities.webAPI}/webapi/tablesnames");
+  Future<List<String>> tablesImported() async {
+    var url = Uri.parse("${Utilities.webAPI}/webapi/tablesimported");
 
     var response = await http.get(url);
 
@@ -34,28 +34,48 @@ class WebAPIService {
   }
 
   Future<Map<String, dynamic>> fileStructure(
-      String filePath, bool excludeHeader) async {
-    var url = Uri.parse(
-        "${Utilities.webAPI}/webapi/filestructure?filePath=$filePath&excludeHeader=$excludeHeader");
+      String filePath, bool excludeHeader, String? delimiter) async {
+    var uri =
+        "${Utilities.webAPI}/webapi/filestructure?filePath=$filePath&excludeHeader=$excludeHeader";
+
+    if (delimiter != null) {
+      uri += "&delimiter=$delimiter";
+    }
+
+    var url = Uri.parse(uri);
 
     var response = await http.get(url);
 
     if (response.statusCode >= 200 && response.statusCode <= 299) {
       var body = jsonDecode(response.body);
 
+      /* header */
+
+      var structure = List<String>.from(body[WebAPIService.fileStructureKey]);
+
+      /* data */
+
       var preview = List<List<String>>.from(
           (body[WebAPIService.filePreviewKey] ?? []).map((e) {
+        var result = <String>[];
+
         var row = jsonDecode(e) as Map<String, dynamic>;
 
-        return List<String>.generate(row.values.length, (i) {
-          var cellule = row.values.elementAt(i);
+        for (var c in structure) {
+          if (row.containsKey(c)) {
+            result.add(row[c]);
+          } else {
+            result.add("");
+          }
+        }
 
-          return cellule;
-        });
+        // return List<String>.generate(row.values.length, (i) {
+        //   var cellule = row.values.elementAt(i);
+
+        //   return cellule;
+        // });
+        return result;
       }).toList());
-
-      // var structure = List<String>.from(jsonDecode(response.body));
-      var structure = List<String>.from(body[WebAPIService.fileStructureKey]);
 
       Map<String, dynamic> result = {
         WebAPIService.filePreviewKey: preview,
@@ -172,8 +192,12 @@ class WebAPIService {
     }
   }
 
-  Future<void> importFile(String fileName, String tableName,
-      Map<String, String?> fileStructure, bool excludeHeader) async {
+  Future<void> importFile(
+      String fileName,
+      String tableName,
+      Map<String, String?> fileStructure,
+      bool excludeHeader,
+      String? delimiter) async {
     var url = Uri.parse("${Utilities.webAPI}/webapi/importfile");
 
     var data = {
@@ -182,6 +206,10 @@ class WebAPIService {
       "fileStructure": jsonEncode(fileStructure),
       "excludeHeader": jsonEncode(excludeHeader)
     };
+
+    if (delimiter != null) {
+      data.putIfAbsent("delimiter", () => delimiter);
+    }
 
     var response = await http.post(url, body: data);
 
@@ -196,7 +224,11 @@ class WebAPIService {
   Future<void> dropTable(String? tableName) async {
     var url = Uri.parse("${Utilities.webAPI}/webapi/droptable");
 
-    var data = {"tableName": tableName};
+    var data = {};
+
+    if (tableName != null) {
+      data.putIfAbsent("tableName", () => tableName);
+    }
 
     var response = await http.post(url, body: data);
 
@@ -230,15 +262,35 @@ class WebAPIService {
     if (response.statusCode >= 200 && response.statusCode <= 299) {
       var body = jsonDecode(response.body);
 
+      /* header */
+
+      var structure = List<String>.from(body[WebAPIService.fileStructureKey]);
+
+      /* data */
+
       var data =
           List<List<String>>.from((body[WebAPIService.dataKey] ?? []).map((e) {
+        // var row = jsonDecode(e) as Map<String, dynamic>;
+
+        // return List<String>.generate(row.values.length, (i) {
+        //   var cellule = row.values.elementAt(i);
+
+        //   return cellule;
+        // });
+
+        var result = <String>[];
+
         var row = jsonDecode(e) as Map<String, dynamic>;
 
-        return List<String>.generate(row.values.length, (i) {
-          var cellule = row.values.elementAt(i);
+        for (var c in structure) {
+          if (row.containsKey(c)) {
+            result.add(row[c]);
+          } else {
+            result.add("");
+          }
+        }
 
-          return cellule;
-        });
+        return result;
       }).toList());
 
       num totalCount = body[WebAPIService.totalCountKey];
@@ -249,6 +301,26 @@ class WebAPIService {
       };
 
       return result;
+    } else {
+      throw Exception(response.body);
+    }
+  }
+
+  Future<void> exportResult(String? filterExpr, int? offset, int? limit) async {
+    var uri =
+        "${Utilities.webAPI}/webapi/exportresult?offset=$offset&limit=$limit";
+
+    if (filterExpr != null) {
+      uri += "&filter=$filterExpr";
+    }
+
+    var url = Uri.parse(uri);
+
+    var response = await http.get(url);
+
+    if (response.statusCode >= 200 && response.statusCode <= 299) {
+      log(response.body);
+      return;
     } else {
       throw Exception(response.body);
     }

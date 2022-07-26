@@ -14,6 +14,7 @@ class ImportView extends StatefulWidget {
   final _dropdownFilesNamesKey = GlobalKey<FormFieldState>();
   final _dropdownTablesNamesKey = GlobalKey<FormFieldState>();
   final _textFieldCSVNameKey = GlobalKey<FormFieldState>();
+  final _dropdownDelimiterKey = GlobalKey<FormFieldState>();
 
   final _dropDownColumnToMapKeys = <GlobalKey<FormFieldState>>[];
   final _textFieldNewColumnNameKeys = <GlobalKey<FormFieldState>>[];
@@ -21,6 +22,7 @@ class ImportView extends StatefulWidget {
   var dataInitialized = false;
   var dataLoading = false;
   var excludeHeader = false;
+  var allowImport = false;
 
   var filesNames = <String>[];
   var tablesNames = <String>[];
@@ -93,6 +95,15 @@ class _ImportViewState extends State<ImportView> {
 
       tablesNamesItems.add(item);
     }
+
+    /* delimiters Items */
+
+    var delimitersItems = const <DropdownMenuItem<String>>[
+      DropdownMenuItem(value: ",", child: Text(",")),
+      DropdownMenuItem(value: ";", child: Text(";")),
+      DropdownMenuItem(value: ":", child: Text(":")),
+      DropdownMenuItem(value: "|", child: Text("|"))
+    ];
 
     /* Build */
 
@@ -169,6 +180,18 @@ class _ImportViewState extends State<ImportView> {
                         labelText: "If other",
                         hintText: "CSV Name"),
                   ),
+                  DropdownButtonFormField<String>(
+                      key: widget._dropdownDelimiterKey,
+                      style: Utilities.itemStyle,
+                      value: ",",
+                      decoration: const InputDecoration(
+                          filled: true,
+                          fillColor: Utilities.fieldFillColor,
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 10),
+                          labelText: "Delimiter"),
+                      items: delimitersItems,
+                      onChanged: (value) {}),
                   CheckboxListTile(
                       title: const Text("Exclude header"),
                       value: widget.excludeHeader,
@@ -185,23 +208,35 @@ class _ImportViewState extends State<ImportView> {
                           widget.dataStruct.complete(<String, dynamic>{});
                         }
                       }),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: ElevatedButton(
-                        onPressed: () {
-                          String? filePath =
-                              widget._dropdownFilesNamesKey.currentState?.value;
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      ElevatedButton(
+                          onPressed: () {
+                            String? filePath = widget
+                                ._dropdownFilesNamesKey.currentState?.value;
 
-                          if (filePath != null) {
-                            loadFileStructure(filePath);
-                          } else {
-                            log("file path is null");
-                          }
-                        },
-                        child: const Text(
-                          "Preview",
-                          style: Utilities.itemStyle,
-                        )),
+                            if (filePath != null) {
+                              loadFileStructure(filePath);
+                            } else {
+                              log("file path is null");
+                            }
+                          },
+                          child: const Text(
+                            "Preview",
+                            style: Utilities.itemStyle,
+                          )),
+                      ElevatedButton(
+                          onPressed: widget.allowImport
+                              ? () {
+                                  runFileImportation();
+                                }
+                              : null,
+                          child: const Text(
+                            "Import",
+                            style: Utilities.itemStyle,
+                          ))
+                    ],
                   )
                 ],
               )),
@@ -272,7 +307,7 @@ class _ImportViewState extends State<ImportView> {
     setState(() {
       widget.dataLoading = true;
     });
-    widget._webAPIService.tablesNames().then((value) {
+    widget._webAPIService.tablesImported().then((value) {
       widget.tablesNames.clear();
 
       // setState(() {
@@ -311,10 +346,13 @@ class _ImportViewState extends State<ImportView> {
   void loadFileStructure(String filePath) {
     setState(() {
       widget.dataStruct = Completer<Map<String, dynamic>>();
+      widget.allowImport = false;
     });
 
+    String? delimiter = widget._dropdownDelimiterKey.currentState?.value;
+
     widget._webAPIService
-            .fileStructure(filePath, widget.excludeHeader)
+            .fileStructure(filePath, widget.excludeHeader, delimiter)
             .then((value) {
       /* Columns mapping Items */
 
@@ -339,10 +377,18 @@ class _ImportViewState extends State<ImportView> {
       widget.filePreviewWidget = filePreview(value, columnsMapItems);
       widget.dataStruct.complete(value);
       // });
+
+      setState(() {
+        widget.allowImport = true;
+      });
     }).catchError((error, stackTrace) {
       log("${error?.toString()}", error: error, stackTrace: stackTrace);
       widget.filePreviewWidget = const SizedBox.shrink();
       widget.dataStruct.completeError(error, stackTrace);
+
+      setState(() {
+        widget.allowImport = false;
+      });
     })
         // .whenComplete(() {
         //   setState(() {});
@@ -356,18 +402,24 @@ class _ImportViewState extends State<ImportView> {
       widget.dataLoading = true;
     });
 
+    String? delimiter = widget._dropdownDelimiterKey.currentState?.value;
+
     WebAPIService()
-        .importFile(fileName, tableName, fileNewStructure, widget.excludeHeader)
+        .importFile(fileName, tableName, fileNewStructure, widget.excludeHeader,
+            delimiter)
         .then((_) {
-      var snackBar = const SnackBar(content: Text("Operation initiated"));
+      var snackBar = const SnackBar(
+          content: Text("Operation initiated, please check Status form"));
       ScaffoldMessenger.of(context).showSnackBar(snackBar);
 
       /* reset form */
 
       widget._dropdownFilesNamesKey.currentState?.reset();
       widget._dropdownTablesNamesKey.currentState?.reset();
+      widget._dropdownDelimiterKey.currentState?.reset();
       widget._textFieldCSVNameKey.currentState?.reset();
       widget.excludeHeader = false;
+      widget.allowImport = false;
 
       loadFilesNames();
       loadTablesNames();
@@ -563,22 +615,22 @@ class _ImportViewState extends State<ImportView> {
                   children: rows,
                 ),
               )),
-          Align(
-            alignment: Alignment.centerRight,
-            child: ElevatedButton(
-                onPressed:
-                    //  widget.dataStruct.isCompleted
-                    //     ?
-                    () {
-                  runFileImportation();
-                }
-                // : null
-                ,
-                child: const Text(
-                  "Import",
-                  style: Utilities.itemStyle,
-                )),
-          )
+          // Align(
+          //   alignment: Alignment.centerRight,
+          //   child: ElevatedButton(
+          //       onPressed:
+          //           //  widget.dataStruct.isCompleted
+          //           //     ?
+          //           () {
+          //         runFileImportation();
+          //       }
+          //       // : null
+          //       ,
+          //       child: const Text(
+          //         "Import",
+          //         style: Utilities.itemStyle,
+          //       )),
+          // )
         ],
       );
     } else {
