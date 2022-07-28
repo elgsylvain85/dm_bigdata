@@ -15,13 +15,19 @@
 - Status file : 
     * PREPARING : Preparation pour l'importation
     * IMPORTING : En cours d'importation
-    * APPEND : Ajout sur un fichier existant
     * IMPORT ERROR : Erreur produite pendant l'importation
     * DONE : Fichier correctement importé
     * EXPORTING : En cours d'exportation
     * EXPORTED : Fichier exporté
     * EXPORT ERROR : Erreur produite pendant l'exportation
-    * CACHING : Cache jointure en cours
-    * CACHED : cache Jointure effectué
+    * APPENDING : Les données importees s'ajoutent à l'existant sans joindre
+    * OVERWRITING : Les données importees creent la base pour la premiere fois
+    * JOINING : Les données importees se joient à l'existant
+    * SAVING : Les donnees importées se preparent à etre persister
 
 - Donnees de fichier sont regroupés à l'importation pour suprimer les doublons
+
+- Contraite importation : 
+    * Nouvelles données creees si base vide
+    * Sinon Jointure si colonnes definies
+    * Sinon ajouts

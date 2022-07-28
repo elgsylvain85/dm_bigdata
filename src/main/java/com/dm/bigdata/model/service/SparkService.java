@@ -100,16 +100,17 @@ public class SparkService {
                         }
                     }
 
+                } else if (joinValue != null) {
+                    cellule = joinValue;
+
                 } else {
-                    if (joinValue != null) {
-                        cellule = joinValue;
-                    }
+                    /* avoid null value */
+                    cellule = "";
                 }
 
-                if (cellule != null) {
-                    rowValues[i] = cellule;
-
-                }
+                // if (cellule != null) {
+                rowValues[i] = cellule;
+                // }
             }
             return RowFactory.create(rowValues);
         }
@@ -265,7 +266,7 @@ public class SparkService {
         Map<String, String> newFileStructure = new HashMap<>();
 
         for (int i = 0; i < dataImportCols.length; i++) {
-            var tempCol = dataImportCols[i] + i;
+            var tempCol = dataImportCols[i] + i +"temp";
 
             // rename column in file to import
             dataImport = dataImport.withColumnRenamed(dataImportCols[i], tempCol);
@@ -275,9 +276,9 @@ public class SparkService {
 
         }
 
-        /* rename columns according mapping */
+        /* now rename columns according mapping */
 
-        var appColumnsNoMapped = this.appColumnService.columns();// to know which columns not used and then complete
+        var appColumnsNoMapped = this.appColumnService.columnsToUpperCase();// to know which columns not used and then complete
                                                                  // with
         // empty
         // value
@@ -288,22 +289,26 @@ public class SparkService {
             if (columnMapped != null) {
 
                 columnMapped = columnMapped.replaceAll("[^a-zA-Z0-9]", "");// remove all special char
-
+                columnMapped = columnMapped.toUpperCase();//use facilite comparaison
                 /* rename with column mapped */
                 dataImport = dataImport.withColumnRenamed(k, columnMapped);
+                // dataImport.printSchema();
 
-                /* if column mapped not exist then add as new app columns */
+                /* if column mapped not exist in system then add as new app columns */
 
                 if (!appColumnsNoMapped.contains(columnMapped)) {
                     this.updateColumnByName(null, columnMapped);
                 } else {
-                    appColumnsNoMapped.remove(columnMapped);// already used
+                    // else just remove from list after mapping
+                    appColumnsNoMapped.remove(columnMapped);
                 }
             } else {
                 /* null means column must be ignored */
                 dataImport = dataImport.drop(k);
             }
         }
+
+        
 
         /* complete all app columns not used with null value */
 
@@ -333,6 +338,8 @@ public class SparkService {
 
         /* align data according app columns order */
 
+        // dataImport.printSchema();
+
         dataImport = dataImport.select(columns);
 
         /* group by columns to remove doublon */
@@ -341,14 +348,25 @@ public class SparkService {
 
         var count = dataImport.count();
 
-        /* start join */
+        /* persist operation */
 
         SparkService.dataStatus.put(tableName,
-                new String[] { tableName, String.valueOf(count), "JOINING", });
+                new String[] { tableName, String.valueOf(count), "SAVING", });
 
-        /* join only if preview data exist else save directly */
+        var joinColumnsAsList = this.appColumnService.joins();
 
-        if (Arrays.asList(this.localTablesNames()).contains(SparkService.JOIN_TABLE_NAME)) {
+        /*
+         * join only if preview data exist and join column is not empty else append or
+         * save directly
+         */
+
+        if (Arrays.asList(this.localTablesNames()).contains(SparkService.JOIN_TABLE_NAME)
+                && !joinColumnsAsList.isEmpty()) {
+
+            /* start join if jointable already exists and joinColumns is not empty */
+
+            SparkService.dataStatus.put(tableName,
+                    new String[] { tableName, String.valueOf(count), "JOINING", });
 
             /* apply join from existant data with data imported */
 
@@ -367,7 +385,7 @@ public class SparkService {
             // this.appColumnService.columnsWithSource().toArray(String[]::new);
 
             // collect(Collectors.toList()).toArray(new Column[]{});
-            var joinColumns = this.appColumnService.joins().toArray(new String[] {});
+            var joinColumns = joinColumnsAsList.toArray(new String[] {});
 
             /* prepare join expr */
 
@@ -405,7 +423,30 @@ public class SparkService {
                     .mode(SaveMode.Overwrite)
                     .option("overwriteSchema", "true")
                     .saveAsTable(SparkService.JOIN_TABLE_NAME);
-        } else {
+        } else if (Arrays.asList(this.localTablesNames()).contains(SparkService.JOIN_TABLE_NAME)
+                && joinColumnsAsList.isEmpty()) {
+
+            /* append data if jointable already exists and joinColumns is empty */
+
+            SparkService.dataStatus.put(tableName,
+                    new String[] { tableName, String.valueOf(count), "APPENDING", });
+
+            /* write data imported directly as base */
+
+            dataImport.write()
+                    .format("delta")
+                    .mode(SaveMode.Append)
+                    .option("overwriteSchema", "true")
+                    .saveAsTable(SparkService.JOIN_TABLE_NAME);
+
+        }
+
+        else {
+
+            /* overwriting data if jointable already not exists */
+
+            SparkService.dataStatus.put(tableName,
+                    new String[] { tableName, String.valueOf(count), "OVERWRITING", });
 
             /* write data imported directly as base */
 
@@ -593,7 +634,7 @@ public class SparkService {
      * @return
      * @throws Exception
      */
-    public Map<String, Object> fileStructure(String filePath, String delimiter, boolean excludeHeader)
+    public Map<String, Object> fileStructure(String filePath, String delimiter, boolean excludeHeader, int limit)
             throws Exception {
         var df = this.sparkSession.read()
                 .option("delimiter", delimiter).option("header", excludeHeader)
@@ -601,7 +642,7 @@ public class SparkService {
 
         Map<String, Object> result = new HashMap<String, Object>();
 
-        var data = df.limit(5).toJSON().collectAsList();
+        var data = df.limit(limit).toJSON().collectAsList();
         var structure = df.schema().fieldNames();
 
         result.put(SparkService.FILE_STRUCTURE_KEY, structure);
@@ -621,6 +662,7 @@ public class SparkService {
     public void updateColumnByName(String oldColumnName, String newColumnName) throws Exception {
 
         newColumnName = newColumnName.replaceAll("[^a-zA-Z0-9]", "");// remove all special char
+        newColumnName = newColumnName.toUpperCase();
 
         for (var tableName : this.localTablesNames()) {
 
@@ -655,6 +697,8 @@ public class SparkService {
      * @throws NoSuchTableException
      */
     public void deleteColumnByName(String columnName) throws Exception {
+
+        columnName = columnName.toUpperCase();
 
         for (var tableName : this.localTablesNames()) {
 

@@ -40,11 +40,11 @@ public class WebAPIController {
     @GetMapping(value = "/filestructure")
     public ResponseEntity<?> fileStructure(@RequestParam String filePath,
             @RequestParam(required = false, defaultValue = ",") String delimiter,
-            @RequestParam(required = false, defaultValue = "false") Boolean excludeHeader) {
+            @RequestParam(required = false, defaultValue = "false") Boolean excludeHeader, @RequestParam(required = false, defaultValue = "10") Integer limit) {
 
         try {
 
-            var data = this.sparkService.fileStructure(filePath, delimiter, excludeHeader);
+            var data = this.sparkService.fileStructure(filePath, delimiter, excludeHeader, limit);
 
             return ResponseEntity.ok(data);
         } catch (Exception ex) {
@@ -69,7 +69,7 @@ public class WebAPIController {
     public ResponseEntity<?> appColumns() {
 
         try {
-            var data = this.appColumnService.columns();
+            var data = this.appColumnService.columnsToUpperCase();
 
             return ResponseEntity.ok(data);
         } catch (Exception ex) {

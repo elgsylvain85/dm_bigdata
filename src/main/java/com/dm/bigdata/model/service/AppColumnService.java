@@ -12,7 +12,7 @@ import com.dm.bigdata.model.pojo.AppColumn;
 @Service
 public class AppColumnService {
 
-    static final String SOURCE_COLUMN = "Sources";
+    static final String SOURCE_COLUMN = "SOURCES";
 
     @Autowired
     AppColumnDao appColumnDao;
@@ -21,14 +21,14 @@ public class AppColumnService {
         return appColumnDao.findAll();
     }
 
-    public List<String> columns() {
+    public List<String> columnsToUpperCase() {
 
         var result = new ArrayList<String>();
 
         var columns = appColumnDao.findAll();
 
         for (var col : columns) {
-            result.add(col.getColumnName());
+            result.add(col.getColumnName().toUpperCase());
         }
 
         return result;
@@ -40,7 +40,7 @@ public class AppColumnService {
         var columns = new ArrayList<String>();
         /* source first */
         columns.add(AppColumnService.SOURCE_COLUMN);
-        columns.addAll(this.columns());
+        columns.addAll(this.columnsToUpperCase());
 
         return columns;
     }

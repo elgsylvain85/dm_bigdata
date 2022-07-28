@@ -54,3 +54,11 @@
 - Correction bug saut champs vide
 - Revision & correction du code
 
+## 0.5.2 : 
+
+- Contraite importation : 
+    * Nouvelles données creees si base vide
+    * Sinon Jointure si colonnes definies
+    * Sinon ajouts
+- Correction bug SparkException: Task failed while writing rows => Causé par certains champs null pendant l'ecriture (non supporté par DElta lake) => Solution remplacer les champs null par ""
+

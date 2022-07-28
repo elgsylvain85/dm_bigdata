@@ -59,7 +59,7 @@ public class AppColumn {
     /////////////// SETTERS///////////////////
     public void setColumnName(String columnName) {
         columnName = columnName.replaceAll("[^a-zA-Z0-9]", "");// remove all special char
-
+        columnName = columnName.toUpperCase();
         this.columnName = columnName;
     }
 

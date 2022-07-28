@@ -210,11 +210,13 @@ class _DataViewState extends State<DataView> {
         if (widget.dataColumns.isCompleted) {
           /* if data received is < limit means no longer has any additional data */
 
-          if (data.length < widget.limit) {
-            widget.enableLoadMore = false;
-          } else {
-            widget.enableLoadMore = true;
-          }
+          setState(() {
+            if (data.length < widget.limit) {
+              widget.enableLoadMore = false;
+            } else {
+              widget.enableLoadMore = true;
+            }
+          });
 
           var columns = await widget.dataColumns.future;
 
