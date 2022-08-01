@@ -111,7 +111,6 @@ class _SettingViewState extends State<SettingView> {
                 children: [
                   DropdownButtonFormField<String?>(
                     key: widget._dropdownEditColumnKey,
-                    style: Utilities.itemStyle,
                     decoration: const InputDecoration(
                         filled: true,
                         fillColor: Utilities.fieldFillColor,
@@ -132,7 +131,6 @@ class _SettingViewState extends State<SettingView> {
                   ),
                   TextFormField(
                     key: widget._textFieldEditColumnKey,
-                    style: Utilities.itemStyle,
                     decoration: const InputDecoration(
                         filled: true,
                         fillColor: Utilities.fieldFillColor,
@@ -160,8 +158,7 @@ class _SettingViewState extends State<SettingView> {
                                 log("Column name is null");
                               }
                             },
-                            child:
-                                const Text("Edit", style: Utilities.itemStyle),
+                            child: const Text("Edit"),
                           ),
                   )
                 ],
@@ -175,7 +172,6 @@ class _SettingViewState extends State<SettingView> {
                 children: [
                   TextFormField(
                     key: widget._textFieldAddColumnKey,
-                    style: Utilities.itemStyle,
                     decoration: const InputDecoration(
                         filled: true,
                         fillColor: Utilities.fieldFillColor,
@@ -195,8 +191,7 @@ class _SettingViewState extends State<SettingView> {
 
                               saveAppColumn(null, newColumnName);
                             },
-                            child:
-                                const Text("Add", style: Utilities.itemStyle),
+                            child: const Text("Add"),
                           ),
                   )
                 ],
@@ -210,7 +205,6 @@ class _SettingViewState extends State<SettingView> {
                 children: [
                   DropdownButtonFormField<String?>(
                     key: widget._dropdownDeleteColumnKey,
-                    style: Utilities.itemStyle,
                     decoration: const InputDecoration(
                         filled: true,
                         fillColor: Utilities.fieldFillColor,
@@ -237,8 +231,7 @@ class _SettingViewState extends State<SettingView> {
                                 log("Column name is null");
                               }
                             },
-                            child: const Text("Delete",
-                                style: Utilities.itemStyle),
+                            child: const Text("Delete"),
                           ),
                   )
                 ],
@@ -253,7 +246,6 @@ class _SettingViewState extends State<SettingView> {
                 children: [
                   DropdownButtonFormField<String?>(
                       key: widget._dropdownDeleteTableKey,
-                      style: Utilities.itemStyle,
                       decoration: const InputDecoration(
                           filled: true,
                           fillColor: Utilities.fieldFillColor,
@@ -279,8 +271,7 @@ class _SettingViewState extends State<SettingView> {
                                 //   log("value is null");
                                 // }
                               },
-                              child: const Text("Delete",
-                                  style: Utilities.itemStyle),
+                              child: const Text("Delete"),
                             ))
                 ],
               )),
@@ -288,7 +279,7 @@ class _SettingViewState extends State<SettingView> {
             onPressed: () {
               showJoinForm();
             },
-            child: const Text("Joincture", style: Utilities.itemStyle),
+            child: const Text("Joincture"),
           ),
         ],
       ),

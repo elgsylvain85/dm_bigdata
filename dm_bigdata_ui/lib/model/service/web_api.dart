@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:developer';
 
 import 'package:dm_bigdata_ui/utility/utilities.dart';
+import 'package:file_picker/src/platform_file.dart';
 import 'package:http/http.dart' as http;
 
 class WebAPIService {
@@ -33,7 +34,7 @@ class WebAPIService {
     }
   }
 
-  Future<Map<String, dynamic>> fileStructure(
+  Future<Map<String, dynamic>> loadPreviewFile(
       String filePath, bool excludeHeader, String? delimiter) async {
     var uri =
         "${Utilities.webAPI}/webapi/filestructure?filePath=$filePath&excludeHeader=$excludeHeader";
@@ -193,17 +194,17 @@ class WebAPIService {
   }
 
   Future<void> importFile(
-      String fileName,
-      String tableName,
-      Map<String, String?> fileStructure,
+      String? filePath,
+      String? source,
+      Map<String, String?> columnsMapping,
       bool excludeHeader,
       String? delimiter) async {
     var url = Uri.parse("${Utilities.webAPI}/webapi/importfile");
 
     var data = {
-      "filePath": fileName,
-      "tableName": tableName,
-      "fileStructure": jsonEncode(fileStructure),
+      "filePath": filePath,
+      "source": source,
+      "columnsMapping": jsonEncode(columnsMapping),
       "excludeHeader": jsonEncode(excludeHeader)
     };
 
@@ -293,11 +294,11 @@ class WebAPIService {
         return result;
       }).toList());
 
-      num totalCount = body[WebAPIService.totalCountKey];
+      // num totalCount = body[WebAPIService.totalCountKey];
 
       Map<String, dynamic> result = {
         WebAPIService.dataKey: data,
-        WebAPIService.totalCountKey: totalCount
+        // WebAPIService.totalCountKey: totalCount
       };
 
       return result;
@@ -353,6 +354,25 @@ class WebAPIService {
       return List<String>.from(jsonDecode(response.body));
     } else {
       throw Exception(response.body);
+    }
+  }
+
+  Future<String> uploadFile(PlatformFile file) async {
+    var url = Uri.parse("${Utilities.webAPI}/webapi/uploadfile");
+
+    var multipart = http.MultipartFile.fromBytes("media", file.bytes!.toList(),
+        filename: file.name);
+
+    var request = http.MultipartRequest("POST", url)..files.add(multipart);
+
+    var response = await request.send();
+
+    if (response.statusCode >= 200 && response.statusCode <= 299) {
+      var body = await response.stream.toBytes();
+      return String.fromCharCodes(body);
+    } else {
+      var body = await response.stream.toBytes();
+      throw Exception(String.fromCharCodes(body));
     }
   }
 }

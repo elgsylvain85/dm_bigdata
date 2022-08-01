@@ -18,14 +18,14 @@ public class AppColumnService {
     AppColumnDao appColumnDao;
 
     public List<AppColumn> allColumns() {
-        return appColumnDao.findAll();
+        return appColumnDao.findByOrderByColumnNameAsc();
     }
 
     public List<String> columnsToUpperCase() {
 
         var result = new ArrayList<String>();
 
-        var columns = appColumnDao.findAll();
+        var columns = this.allColumns();
 
         for (var col : columns) {
             result.add(col.getColumnName().toUpperCase());
@@ -102,7 +102,7 @@ public class AppColumnService {
     }
 
     public List<AppColumn> allJoins() {
-        return this.appColumnDao.findByJoinColum(true);
+        return this.appColumnDao.findByJoinColumOrderByColumnNameAsc(true);
     }
 
     public List<String> joins() {

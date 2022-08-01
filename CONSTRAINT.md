@@ -6,11 +6,9 @@
 
 - Prise en compte de la ligne header ignorée par defaut
 
-- Repertoire de travail pour importation "./dm_bigdata_worker_folder"
+- application configurable depuis : ./config/application.properties
 
-- Repertoire d'exportation : ./dm_bigdata_worker_folder/export
-
-- Compatibilité et test : Spark_3.2.1 | spark-3.2.1-bin-hadoop3.2
+- Compatibilité et test : Spark_3.2.1 | spark-3.2.1-bin-hadoop3.2.4
 
 - Status file : 
     * PREPARING : Preparation pour l'importation
@@ -24,6 +22,7 @@
     * OVERWRITING : Les données importees creent la base pour la premiere fois
     * JOINING : Les données importees se joient à l'existant
     * SAVING : Les donnees importées se preparent à etre persister
+    * QUEUE : En attente d'importation
 
 - Donnees de fichier sont regroupés à l'importation pour suprimer les doublons
 

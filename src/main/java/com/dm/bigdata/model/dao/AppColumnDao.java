@@ -8,8 +8,10 @@ import com.dm.bigdata.model.pojo.AppColumn;
 
 public interface AppColumnDao extends JpaRepository<AppColumn, String> {
 
-    List<AppColumn> findByJoinColum(Boolean joinColum);
+    List<AppColumn> findByJoinColumOrderByColumnNameAsc(Boolean joinColum);
 
     AppColumn findByColumnName(String columnName);
+
+    List<AppColumn> findByOrderByColumnNameAsc();
 
 }

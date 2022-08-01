@@ -9,7 +9,7 @@
 	</parent>
 	<groupId>com.dm</groupId>
 	<artifactId>big-data</artifactId>
-	<version>0.5.2</version>
+	<version>0.6.0</version>
 	<name>dm-big-data</name>
 	<description>Demo project Big Data search</description>
 	<properties>
@@ -57,7 +57,7 @@
 			<version>2.13.3</version>
 		</dependency>
 
-		<!--Files Search Processing engine -->
+		<!-- Bigdata -->
 
 		<!-- https://mvnrepository.com/artifact/org.apache.spark/spark-core -->
 		<dependency>
@@ -75,6 +75,17 @@
 			<scope>provided</scope>
 		</dependency>
 
+		<!-- https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-client -->
+		<dependency>
+			<groupId>org.apache.hadoop</groupId>
+			<artifactId>hadoop-client</artifactId>
+			<version>3.2.4</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.hadoop</groupId>
+			<artifactId>hadoop-common</artifactId>
+			<version>3.2.4</version>
+		</dependency>
 
 		<dependency>
 			<groupId>io.delta</groupId>

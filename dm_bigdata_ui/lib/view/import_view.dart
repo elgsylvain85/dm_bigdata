@@ -1,36 +1,32 @@
-import 'dart:async';
 import 'dart:developer';
 
 import 'package:dm_bigdata_ui/model/service/web_api.dart';
 import 'package:dm_bigdata_ui/utility/utilities.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 class ImportView extends StatefulWidget {
   ImportView({Key? key}) : super(key: key);
 
   final _webAPIService = WebAPIService();
-  // final _utilities = Utilities();
+  final _importFormKey = GlobalKey<FormState>();
+  static final delimitersList = [",", ";", ":", "|"];
 
-  final _dropdownFilesNamesKey = GlobalKey<FormFieldState>();
-  final _dropdownTablesNamesKey = GlobalKey<FormFieldState>();
-  final _textFieldCSVNameKey = GlobalKey<FormFieldState>();
-  final _dropdownDelimiterKey = GlobalKey<FormFieldState>();
+  String? source;
+  String? newSource;
+  var delimiter = ImportView.delimitersList.first;
+  var excludeHeader = false;
+  String? importPath;
+  String? fileChosenName;
+  Map<String, dynamic>? filePreviewData;
 
-  final _dropDownColumnToMapKeys = <GlobalKey<FormFieldState>>[];
-  final _textFieldNewColumnNameKeys = <GlobalKey<FormFieldState>>[];
+  var columnsMap = <String?>[];
+  var newColumnsNames = <String>[];
 
   var dataInitialized = false;
   var dataLoading = false;
-  var excludeHeader = false;
-  var allowImport = false;
-
-  var filesNames = <String>[];
-  var tablesNames = <String>[];
-  // var fileStructure = <String>[];
-  var appColumns = <String>[];
-
-  var dataStruct = Completer<Map<String, dynamic>>();
-  Widget? filePreviewWidget;
+  var sourcesList = <String>[];
+  var columnsList = <String>[];
 
   @override
   State<StatefulWidget> createState() => _ImportViewState();
@@ -42,9 +38,6 @@ class _ImportViewState extends State<ImportView> {
     super.didChangeDependencies();
 
     if (!widget.dataInitialized) {
-      widget.filePreviewWidget = const SizedBox.shrink();
-      widget.dataStruct.complete(<String, dynamic>{});
-
       refreshData();
       widget.dataInitialized = true;
     }
@@ -54,46 +47,24 @@ class _ImportViewState extends State<ImportView> {
   Widget build(BuildContext context) {
     dynamic item;
 
-    /* Files to import Items */
+    /* sources Items */
 
-    var filesNamesItems = <DropdownMenuItem<String?>>[];
-
-    item = const DropdownMenuItem<String?>(
-      value: null,
-      child: Text("Choose File"),
-    );
-
-    filesNamesItems.add(item);
-
-    for (var e in widget.filesNames) {
-      var fileName = e.split('/').last; // get short file name
-
-      item = DropdownMenuItem(
-        value: e,
-        child: Text(fileName),
-      );
-
-      filesNamesItems.add(item);
-    }
-
-    /* Tables names to append Items */
-
-    var tablesNamesItems = <DropdownMenuItem<String?>>[];
+    var sourcesItems = <DropdownMenuItem<String?>>[];
 
     item = const DropdownMenuItem<String?>(
       value: null,
       child: Text("Other"),
     );
 
-    tablesNamesItems.add(item);
+    sourcesItems.add(item);
 
-    for (var e in widget.tablesNames) {
+    for (var e in widget.sourcesList) {
       item = DropdownMenuItem<String?>(
         value: e,
         child: Text(e),
       );
 
-      tablesNamesItems.add(item);
+      sourcesItems.add(item);
     }
 
     /* delimiters Items */
@@ -105,12 +76,31 @@ class _ImportViewState extends State<ImportView> {
       DropdownMenuItem(value: "|", child: Text("|"))
     ];
 
+    /* columns mapping Items */
+
+    var columnsMapItems = <DropdownMenuItem<String?>>[];
+
+    item = const DropdownMenuItem<String?>(
+      value: null,
+      child: Text("New or Delete"),
+    );
+
+    columnsMapItems.add(item);
+
+    for (var e in widget.columnsList) {
+      var item = DropdownMenuItem<String?>(
+        value: e,
+        child: Text(e),
+      );
+
+      columnsMapItems.add(item);
+    }
+
     /* Build */
 
-    return Center(
-        child: SingleChildScrollView(
+    return SingleChildScrollView(
+        child: Center(
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           /* Refresh button */
@@ -125,197 +115,191 @@ class _ImportViewState extends State<ImportView> {
           ),
           /* Import file */
           Container(
-              width: Utilities.fieldWidth,
-              // height: Utilities.fieldHeight,
+              width: Utilities.formWidth,
               margin: const EdgeInsets.symmetric(vertical: 10),
-              child: Column(
-                children: [
-                  DropdownButtonFormField<String?>(
-                    key: widget._dropdownFilesNamesKey,
-                    style: Utilities.itemStyle,
-                    icon: const Icon(Icons.search),
-                    decoration: const InputDecoration(
-                        filled: true,
-                        fillColor: Utilities.fieldFillColor,
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 10),
-                        labelText: "File Name"),
-                    items: filesNamesItems,
-                    onChanged: (value) {
-                      widget._dropdownTablesNamesKey.currentState?.reset();
-                      widget._textFieldCSVNameKey.currentState?.reset();
-
-                      if (value != null) {
-                        var fileName = value.split('/').last; // short file name
-                        widget._textFieldCSVNameKey.currentState
-                            ?.didChange(fileName);
-                      }
-                      /* clear file structure preview */
-                      setState(() {
-                        widget.filePreviewWidget = const SizedBox.shrink();
-                        widget.dataStruct = Completer<Map<String, dynamic>>();
-                      });
-                      widget.dataStruct.complete(<String, dynamic>{});
-                    },
-                  ),
-                  DropdownButtonFormField<String?>(
-                      key: widget._dropdownTablesNamesKey,
-                      style: Utilities.itemStyle,
-                      decoration: const InputDecoration(
-                          filled: true,
-                          fillColor: Utilities.fieldFillColor,
-                          border: OutlineInputBorder(),
-                          contentPadding: EdgeInsets.symmetric(horizontal: 10),
-                          labelText: "Index"),
-                      items: tablesNamesItems,
-                      onChanged: (value) {}),
-                  TextFormField(
-                    key: widget._textFieldCSVNameKey,
-                    style: Utilities.itemStyle,
-                    decoration: const InputDecoration(
-                        filled: true,
-                        fillColor: Utilities.fieldFillColor,
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 10),
-                        labelText: "If other",
-                        hintText: "CSV Name"),
-                  ),
-                  DropdownButtonFormField<String>(
-                      key: widget._dropdownDelimiterKey,
-                      style: Utilities.itemStyle,
-                      value: ",",
-                      decoration: const InputDecoration(
-                          filled: true,
-                          fillColor: Utilities.fieldFillColor,
-                          border: OutlineInputBorder(),
-                          contentPadding: EdgeInsets.symmetric(horizontal: 10),
-                          labelText: "Delimiter"),
-                      items: delimitersItems,
-                      onChanged: (value) {}),
-                  CheckboxListTile(
-                      title: const Text("Exclude header"),
-                      value: widget.excludeHeader,
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() {
-                            widget.excludeHeader = value;
-                            /* clear file structure preview */
-                            widget.filePreviewWidget = const SizedBox.shrink();
-                            widget.dataStruct =
-                                Completer<Map<String, dynamic>>();
-                          });
-
-                          widget.dataStruct.complete(<String, dynamic>{});
-                        }
-                      }),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+              child: Form(
+                  key: widget._importFormKey,
+                  child: Column(
                     children: [
-                      ElevatedButton(
-                          onPressed: () {
-                            String? filePath = widget
-                                ._dropdownFilesNamesKey.currentState?.value;
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          ElevatedButton(
+                              onPressed: () async {
+                                var filePickerResult =
+                                    await FilePicker.platform.pickFiles();
 
-                            if (filePath != null) {
-                              loadFileStructure(filePath);
+                                if (filePickerResult != null) {
+                                  /* star load file to server */
+                                  var file = filePickerResult.files.single;
+
+                                  setState(() {
+                                    widget.dataLoading = true;
+                                  });
+
+                                  widget._webAPIService
+                                      .uploadFile(file)
+                                      .then((value) {
+                                    // setState(() {
+                                    widget.fileChosenName = file.name;
+                                    widget.importPath = value;
+                                    // });
+                                  }).catchError((error, stackTrace) {
+                                    var errorMsg = "${error?.toString()}";
+
+                                    log(errorMsg, stackTrace: stackTrace);
+
+                                    widget.importPath = null;
+
+                                    showDialog(
+                                        context: context,
+                                        builder: (context) {
+                                          return AlertDialog(
+                                              title: const Text("Error"),
+                                              content:
+                                                  SelectableText(errorMsg));
+                                        });
+                                  }).whenComplete(() {
+                                    setState(() {
+                                      widget.dataLoading = false;
+                                    });
+                                  });
+                                }
+                              },
+                              child: const Text("File name")),
+                          Text(widget.fileChosenName ?? "No file chosen")
+                        ],
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 10,
+                        ),
+                        child: DropdownButtonFormField<String?>(
+                          key: GlobalKey(),
+                          value: widget.source,
+                          decoration: const InputDecoration(
+                              border: OutlineInputBorder(), labelText: "Index"),
+                          items: sourcesItems,
+                          onChanged: (value) {
+                            widget.source = value;
+                          },
+                          onSaved: (value) {
+                            widget.source = value;
+                          },
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: TextFormField(
+                          key: GlobalKey(),
+                          initialValue: widget.newSource,
+                          decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                              labelText: "If other",
+                              hintText: "Source name"),
+                          validator: (value) {
+                            if (widget.source != null) {
+                              return null;
                             } else {
-                              log("file path is null");
+                              if (value != null && value.trim().isNotEmpty) {
+                                return null;
+                              } else {
+                                return "This value is mandatory";
+                              }
                             }
                           },
-                          child: const Text(
-                            "Preview",
-                            style: Utilities.itemStyle,
-                          )),
-                      ElevatedButton(
-                          onPressed: widget.allowImport
-                              ? () {
-                                  runFileImportation();
+                          onSaved: (value) {
+                            widget.newSource = value;
+                          },
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: DropdownButtonFormField<String>(
+                          key: GlobalKey(),
+                          value: widget.delimiter,
+                          decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                              labelText: "Delimiter"),
+                          items: delimitersItems,
+                          onChanged: (value) {
+                            if (value != null) {
+                              widget.delimiter = value;
+                            }
+                          },
+                          onSaved: (value) {
+                            if (value != null) {
+                              widget.delimiter = value;
+                            }
+                          },
+                        ),
+                      ),
+                      CheckboxListTile(
+                          title: const Text("Exclude header"),
+                          value: widget.excludeHeader,
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() {
+                                widget.excludeHeader = value;
+                              });
+                            }
+                          }),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          ElevatedButton(
+                              onPressed: () {
+                                if ((widget._importFormKey.currentState
+                                            ?.validate() ??
+                                        false) &&
+                                    widget.importPath != null) {
+                                  widget._importFormKey.currentState?.save();
+
+                                  loadPreviewFile();
+                                } else {
+                                  showDialog(
+                                      context: context,
+                                      builder: (context) {
+                                        return const AlertDialog(
+                                            title: Text("Error"),
+                                            content: SelectableText(
+                                                "Please check data"));
+                                      });
                                 }
-                              : null,
-                          child: const Text(
-                            "Import",
-                            style: Utilities.itemStyle,
-                          ))
+                              },
+                              child: const Text(
+                                "Preview",
+                              )),
+                          ElevatedButton(
+                              onPressed: widget.filePreviewData != null
+                                  ? () {
+                                      runFileImportation();
+                                    }
+                                  : null,
+                              child: const Text(
+                                "Import",
+                              ))
+                        ],
+                      )
                     ],
-                  )
-                ],
-              )),
+                  ))),
           /* Preview */
-          FutureBuilder<Map<String, dynamic>>(
-              future: widget.dataStruct.future,
-              builder: ((context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.done &&
-                    snapshot.hasData) {
-                  // var data = snapshot.requireData;
-
-                  return widget.filePreviewWidget ??
-                      const Center(
-                          child: Text(
-                              "No data available. Please press preview button"));
-                } else if (snapshot.connectionState ==
-                    ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
-                } else {
-                  if (snapshot.hasError) {
-                    var error = snapshot.error;
-                    log("${error?.toString()}",
-                        error: error, stackTrace: snapshot.stackTrace);
-                  }
-
-                  return const Center(
-                      child: Text(
-                          "No data available. Please press refresh button"));
-                }
-              }))
+          generateFilePreviewWidget(columnsMapItems)
         ],
       ),
     ));
   }
 
-  void loadFilesNames() {
-    setState(() {
-      widget.dataLoading = true;
-    });
-
-    widget._webAPIService.filesToImport().then((value) {
-      widget.filesNames.clear();
-      // widget.fileStructure.clear();
-      widget.filePreviewWidget = const SizedBox.shrink();
-      widget.dataStruct = Completer<Map<String, dynamic>>();
-      widget.dataStruct.complete(<String, dynamic>{});
-
-      // setState(() {
-      widget.filesNames.addAll(value);
-
-      // });
-    }).catchError((error, stackTrace) {
-      log("${error?.toString()}", error: error, stackTrace: stackTrace);
-      widget.filesNames.clear();
-      widget.filePreviewWidget = const SizedBox.shrink();
-      widget.dataStruct = Completer<Map<String, dynamic>>();
-      widget.dataStruct.complete(<String, dynamic>{});
-    }).whenComplete(() {
-      setState(() {
-        widget.dataLoading = false;
-      });
-    });
-  }
-
-  void loadTablesNames() {
+  void loadSources() {
     setState(() {
       widget.dataLoading = true;
     });
     widget._webAPIService.tablesImported().then((value) {
-      widget.tablesNames.clear();
-
-      // setState(() {
-      widget.tablesNames.addAll(value);
-      // });
+      widget.sourcesList.clear();
+      widget.sourcesList.addAll(value);
     }).catchError((error, stackTrace) {
       log("${error?.toString()}", error: error, stackTrace: stackTrace);
-      widget.tablesNames.clear();
+      widget.sourcesList.clear();
     }).whenComplete(() {
       setState(() {
         widget.dataLoading = false;
@@ -323,19 +307,16 @@ class _ImportViewState extends State<ImportView> {
     });
   }
 
-  void loadAppColumns() {
+  void loadColumns() {
     setState(() {
       widget.dataLoading = true;
     });
     widget._webAPIService.appColumns().then((value) {
-      widget.appColumns.clear();
-
-      // setState(() {
-      widget.appColumns.addAll(value);
-      // });
+      widget.columnsList.clear();
+      widget.columnsList.addAll(value);
     }).catchError((error, stackTrace) {
       log("${error?.toString()}", error: error, stackTrace: stackTrace);
-      widget.appColumns.clear();
+      widget.columnsList.clear();
     }).whenComplete(() {
       setState(() {
         widget.dataLoading = false;
@@ -343,92 +324,34 @@ class _ImportViewState extends State<ImportView> {
     });
   }
 
-  void loadFileStructure(String filePath) {
-    setState(() {
-      widget.dataStruct = Completer<Map<String, dynamic>>();
-      widget.allowImport = false;
-    });
-
-    String? delimiter = widget._dropdownDelimiterKey.currentState?.value;
-
-    widget._webAPIService
-            .fileStructure(filePath, widget.excludeHeader, delimiter)
-            .then((value) {
-      /* Columns mapping Items */
-
-      var columnsMapItems = <DropdownMenuItem<String?>>[];
-
-      var item = const DropdownMenuItem<String?>(
-        value: null,
-        child: Text("New or Delete"),
-      );
-
-      columnsMapItems.add(item);
-
-      for (var e in widget.appColumns) {
-        var item = DropdownMenuItem<String?>(
-          value: e,
-          child: Text(e),
-        );
-
-        columnsMapItems.add(item);
-      }
-      // setState(() {
-      widget.filePreviewWidget = filePreview(value, columnsMapItems);
-      widget.dataStruct.complete(value);
-      // });
-
-      setState(() {
-        widget.allowImport = true;
-      });
-    }).catchError((error, stackTrace) {
-      log("${error?.toString()}", error: error, stackTrace: stackTrace);
-      widget.filePreviewWidget = const SizedBox.shrink();
-      widget.dataStruct.completeError(error, stackTrace);
-
-      setState(() {
-        widget.allowImport = false;
-      });
-    })
-        // .whenComplete(() {
-        //   setState(() {});
-        // })
-        ;
-  }
-
-  void importFile(String fileName, String tableName,
-      Map<String, String?> fileNewStructure) {
+  void loadPreviewFile() {
     setState(() {
       widget.dataLoading = true;
     });
 
-    String? delimiter = widget._dropdownDelimiterKey.currentState?.value;
+    widget._webAPIService
+        .loadPreviewFile(
+            widget.importPath!, widget.excludeHeader, widget.delimiter)
+        .then((value) {
+      List<String> structure = value.containsKey(WebAPIService.fileStructureKey)
+          ? value[WebAPIService.fileStructureKey]
+          : [];
 
-    WebAPIService()
-        .importFile(fileName, tableName, fileNewStructure, widget.excludeHeader,
-            delimiter)
-        .then((_) {
-      var snackBar = const SnackBar(
-          content: Text("Operation initiated, please check Status form"));
-      ScaffoldMessenger.of(context).showSnackBar(snackBar);
+      widget.columnsMap.clear();
+      widget.newColumnsNames.clear();
 
-      /* reset form */
+      for (int i = 0; i < structure.length; i++) {
+        var e = i < widget.columnsList.length ? widget.columnsList[i] : null;
 
-      widget._dropdownFilesNamesKey.currentState?.reset();
-      widget._dropdownTablesNamesKey.currentState?.reset();
-      widget._dropdownDelimiterKey.currentState?.reset();
-      widget._textFieldCSVNameKey.currentState?.reset();
-      widget.excludeHeader = false;
-      widget.allowImport = false;
+        widget.columnsMap.add(e);
+        widget.newColumnsNames.add(e ?? "");
+      }
 
-      loadFilesNames();
-      loadTablesNames();
-      loadAppColumns();
+      // setState(() {
+      widget.filePreviewData = value;
+//  });
     }).catchError((error, stackTrace) {
       log("${error?.toString()}", error: error, stackTrace: stackTrace);
-
-      var snackBar = SnackBar(content: Text("${error?.toString()}"));
-      ScaffoldMessenger.of(context).showSnackBar(snackBar);
     }).whenComplete(() {
       setState(() {
         widget.dataLoading = false;
@@ -437,205 +360,219 @@ class _ImportViewState extends State<ImportView> {
   }
 
   void refreshData() {
-    loadFilesNames();
-    loadTablesNames();
-    loadAppColumns();
+    widget.source = null;
+    widget.newSource = null;
+    widget.delimiter = ImportView.delimitersList.first;
+    widget.excludeHeader = false;
+    widget.importPath = null;
+    widget.filePreviewData = null;
+    widget.fileChosenName = null;
+
+    widget.columnsMap.clear();
+    widget.newColumnsNames.clear();
+
+    widget.dataInitialized = false;
+    widget.dataLoading = false;
+
+    loadSources();
+    loadColumns();
   }
 
   void runFileImportation() async {
-    String? fileName = widget._dropdownFilesNamesKey.currentState?.value;
+    try {
+      setState(() {
+        widget.dataLoading = true;
+      });
 
-    /* get table name directly on table list else if null then on csv name text field */
-    String? tableName = widget._dropdownTablesNamesKey.currentState?.value;
-    tableName ??= widget._textFieldCSVNameKey.currentState?.value;
+      var data = widget.filePreviewData;
 
-    /* generate structure new file to import */
+      if (data != null) {
+        /* generate structure columns mapping */
 
-    var fileNewStructure =
-        <String, String?>{}; //default column name, mapped column
+        List<String> structure =
+            data.containsKey(WebAPIService.fileStructureKey)
+                ? data[WebAPIService.fileStructureKey]
+                : [];
 
-    if (widget.dataStruct.isCompleted) {
-      var data = await widget.dataStruct.future;
-      List<String> structure = data.containsKey(WebAPIService.fileStructureKey)
-          ? data[WebAPIService.fileStructureKey]
-          : [];
+        var structureColumnsMapping = <String,
+            String?>{}; // key => current file column, value => column to map after import, null to ignore column
 
-      for (int i = 0; i < structure.length; i++) {
-        String? mapColumnName =
-            widget._dropDownColumnToMapKeys[i].currentState?.value;
-        String? newColumnName =
-            widget._textFieldNewColumnNameKeys[i].currentState?.value;
+        for (int i = 0; i < structure.length; i++) {
+          String? columnMap = widget.columnsMap[i];
+          String? newColumnName = widget.newColumnsNames[i];
 
-        /* if column mapped is null then take new column name*/
+          /* if column mapped is null then take new column name*/
 
-        if (mapColumnName == null) {
-          if (newColumnName != null && newColumnName.trim().isNotEmpty) {
-            fileNewStructure.putIfAbsent(structure[i], () => newColumnName);
+          if (columnMap == null) {
+            if (newColumnName != null && newColumnName.trim().isNotEmpty) {
+              structureColumnsMapping.putIfAbsent(
+                  structure[i], () => newColumnName);
+            } else {
+              structureColumnsMapping.putIfAbsent(structure[i],
+                  () => null); // null means columns value must be ignored
+            }
           } else {
-            fileNewStructure.putIfAbsent(structure[i],
-                () => null); // null means columns value must be ignored
+            structureColumnsMapping.putIfAbsent(structure[i], () => columnMap);
           }
-        } else {
-          fileNewStructure.putIfAbsent(structure[i], () => mapColumnName);
         }
-      }
 
-      if (fileName != null &&
-          (tableName != null && tableName.trim().isNotEmpty)) {
-        importFile(fileName, tableName, fileNewStructure);
+        /* run import */
+
+        await WebAPIService().importFile(
+            widget.importPath,
+            widget.source ?? widget.newSource,
+            structureColumnsMapping,
+            widget.excludeHeader,
+            widget.delimiter);
+
+        refreshData();
+
+        showDialog(
+            context: context,
+            builder: (context) {
+              return const AlertDialog(
+                  content: SelectableText(
+                      "Operation initiated, please check Status form"));
+            });
       } else {
-        log("File name or Table name is null");
+        throw Exception("data stucture is not loaded");
       }
-    } else {
-      log("data stucture is not loaded");
+    } catch (error, stackTrace) {
+      log(error.toString(), error: error, stackTrace: stackTrace);
+
+      showDialog(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+                title: const Text("Error"),
+                content: SelectableText(error.toString()));
+          });
+    } finally {
+      setState(() {
+        widget.dataLoading = false;
+      });
     }
   }
 
-  Widget filePreview(Map<String, dynamic> data,
+  Widget generateFilePreviewWidget(
       List<DropdownMenuItem<String?>> columnsMapItems) {
-    List<String> structure = data.containsKey(WebAPIService.fileStructureKey)
-        ? data[WebAPIService.fileStructureKey]
-        : [];
-    List<List<String>> preview = data.containsKey(WebAPIService.filePreviewKey)
-        ? data[WebAPIService.filePreviewKey]
-        : [];
+    var data = widget.filePreviewData;
 
-    if (structure.isNotEmpty) {
-      var rows = <Row>[];
-      var columnsNames = <Widget>[];
-      var columnToMapCells = <Widget>[]; // choose column to map to schema
-      var newColumnNameCells =
-          <Widget>[]; // or put directly new column name, empty to ignore
+    if (data != null) {
+      List<String> structure = data.containsKey(WebAPIService.fileStructureKey)
+          ? data[WebAPIService.fileStructureKey]
+          : [];
+      List<List<String>> preview =
+          data.containsKey(WebAPIService.filePreviewKey)
+              ? data[WebAPIService.filePreviewKey]
+              : [];
 
-      widget._dropDownColumnToMapKeys.clear();
-      widget._textFieldNewColumnNameKeys.clear();
-
-      for (int i = 0; i < structure.length; i++) {
-        /* Columns names */
-
-        var colStrucName = structure[i];
-
-        columnsNames.add(Container(
-            width: Utilities.fieldWidth,
-            // height: Utilities.fieldHeight,
-            margin: const EdgeInsets.symmetric(vertical: 10),
-            child: SelectableText(colStrucName)));
-
-        /* Prepare column to map to schema */
-
-        widget._dropDownColumnToMapKeys.add(GlobalKey<FormFieldState>());
-
-        columnToMapCells.add(Container(
-            width: Utilities.fieldWidth,
-            // height: Utilities.fieldHeight,
-            margin: const EdgeInsets.fromLTRB(0, 10, 0, 10),
-            child: DropdownButtonFormField<String?>(
-                key: widget._dropDownColumnToMapKeys[i],
-                style: Utilities.itemStyle,
-                decoration: const InputDecoration(
-                    filled: true,
-                    fillColor: Utilities.fieldFillColor,
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 10),
-                    labelText: "Map column"),
-                items: columnsMapItems,
-                value:
-                    i >= widget.appColumns.length ? null : widget.appColumns[i],
-                onChanged: (value) {})));
-
-        /* Prepare new column name, empty to ignore */
-
-        widget._textFieldNewColumnNameKeys.add(GlobalKey<FormFieldState>());
-        // var initialValue =
-        //     i >= widget.appColumns.length ? "Column$i" : widget.appColumns[i];
-        String? initialValue;
-
-        newColumnNameCells.add(Container(
-            width: Utilities.fieldWidth,
-            // height: Utilities.fieldHeight,
-            margin: const EdgeInsets.symmetric(vertical: 10),
-            child: TextFormField(
-              key: widget._textFieldNewColumnNameKeys[i],
-              style: Utilities.itemStyle,
-              decoration: const InputDecoration(
-                  filled: true,
-                  fillColor: Utilities.fieldFillColor,
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 10),
-                  labelText: "Empty to ignore",
-                  hintText: "Column Name"),
-              initialValue: initialValue,
-            )));
-      }
-
-      /* apply structure */
-
-      rows.add(Row(children: columnsNames));
-
-      rows.add(Row(children: columnToMapCells));
-
-      rows.add(Row(children: newColumnNameCells));
-
-      /* apply preview data */
-
-      for (var row in preview) {
-        var rowData = <Widget>[];
+      if (structure.isNotEmpty) {
+        var rows = <Row>[];
+        var columnsTitles = <Widget>[];
+        var columnsMapCells = <Widget>[]; // choose column to map to schema
+        var newColumnsNamesCells =
+            <Widget>[]; // or put directly new column name, empty to ignore
 
         for (int i = 0; i < structure.length; i++) {
-          var cellValue = Utilities.defaultCellEmptyValue;
+          /* Columns names */
 
-          if (i < row.length) {
-            cellValue = row[i];
-          }
+          var colStrucName = structure[i];
 
-          rowData.add(Container(
+          columnsTitles.add(Container(
               width: Utilities.fieldWidth,
-              // height: Utilities.fieldHeight,
               margin: const EdgeInsets.symmetric(vertical: 10),
-              child: SelectableText(cellValue)));
+              child: SelectableText(colStrucName)));
+
+          /* Prepare column to map to schema */
+
+          columnsMapCells.add(Container(
+              width: Utilities.fieldWidth,
+              margin: const EdgeInsets.fromLTRB(0, 10, 0, 10),
+              child: DropdownButtonFormField<String?>(
+                  key: GlobalKey(),
+                  value: widget.columnsMap[i],
+                  decoration: const InputDecoration(
+                      border: OutlineInputBorder(), labelText: "Map column"),
+                  items: columnsMapItems,
+                  onChanged: (value) {
+                    widget.columnsMap[i] = value;
+
+                    /* update new column name */
+
+                    setState(() {
+                      if (value == null) {
+                        widget.newColumnsNames[i] = "";
+                      } else {
+                        widget.newColumnsNames[i] = value;
+                      }
+                    });
+                  })));
+
+          /* Prepare new column name, empty to ignore */
+
+          newColumnsNamesCells.add(Container(
+              width: Utilities.fieldWidth,
+              margin: const EdgeInsets.symmetric(vertical: 10),
+              child: TextFormField(
+                  key: GlobalKey(),
+                  initialValue: widget.newColumnsNames[i],
+                  decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      labelText: "Empty to ignore",
+                      hintText: "Column Name"),
+                  onChanged: (value) {
+                    widget.newColumnsNames[i] = value;
+                  })));
         }
 
-        rows.add(Row(children: rowData));
-      }
+        /* apply structure */
 
-      var x = ScrollController();
+        rows.add(Row(children: columnsTitles));
+        rows.add(Row(children: columnsMapCells));
+        rows.add(Row(children: newColumnsNamesCells));
 
-      return Column(
-        children: [
-          Scrollbar(
-              // scrollbarOrientation: ScrollbarOrientation.right,
-              controller: x,
-              trackVisibility: true,
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                // physics: const AlwaysScrollableScrollPhysics(),
+        /* apply preview data */
+
+        for (var row in preview) {
+          var rowData = <Widget>[];
+
+          for (int i = 0; i < structure.length; i++) {
+            var cellValue = Utilities.defaultCellEmptyValue;
+
+            if (i < row.length) {
+              cellValue = row[i];
+            }
+
+            rowData.add(Container(
+                width: Utilities.fieldWidth,
+                margin: const EdgeInsets.symmetric(vertical: 10),
+                child: SelectableText(cellValue)));
+          }
+
+          rows.add(Row(children: rowData));
+        }
+
+        var x = ScrollController();
+
+        return Column(
+          children: [
+            Scrollbar(
                 controller: x,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                child: Column(
-                  children: rows,
-                ),
-              )),
-          // Align(
-          //   alignment: Alignment.centerRight,
-          //   child: ElevatedButton(
-          //       onPressed:
-          //           //  widget.dataStruct.isCompleted
-          //           //     ?
-          //           () {
-          //         runFileImportation();
-          //       }
-          //       // : null
-          //       ,
-          //       child: const Text(
-          //         "Import",
-          //         style: Utilities.itemStyle,
-          //       )),
-          // )
-        ],
-      );
-    } else {
-      return const Center(
-          child: Text("No data available. Please press Preview button"));
+                trackVisibility: true,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  controller: x,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Column(
+                    children: rows,
+                  ),
+                )),
+          ],
+        );
+      }
     }
+    return const Center(
+        child: Text("No data available. Please press Preview button"));
   }
 }

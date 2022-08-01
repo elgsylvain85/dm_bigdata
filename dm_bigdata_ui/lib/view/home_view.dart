@@ -7,13 +7,11 @@ import 'package:dm_bigdata_ui/view/filter_view.dart';
 import 'package:dm_bigdata_ui/view/import_view.dart';
 import 'package:dm_bigdata_ui/view/setting_view.dart';
 import 'package:dm_bigdata_ui/view/status_view.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 class HomeView extends StatefulWidget {
   static const routeName = "homePage";
   static const initialIndexArg = "initialIndex";
-  // static const fileNameArg = "fileName";
   static const filterExprArg = "filterExp";
 
   final _structureService = WebAPIService();
@@ -50,9 +48,7 @@ class _HomeViewState extends State<HomeView> {
       loadArgs();
       loadColumnsNames(); // call after load args
 
-      widget.dataView = DataView(
-          // fileName: widget.fileName,
-          filterExpr: widget.filterExpr);
+      widget.dataView = DataView(filterExpr: widget.filterExpr);
       widget.filterView = FilterView();
       widget.importView = ImportView();
       widget.statusView = StatusView();
@@ -103,15 +99,12 @@ class _HomeViewState extends State<HomeView> {
                     height: Utilities.fieldHeight,
                     child: DropdownButtonFormField<String?>(
                         key: widget._dropdownColumnFilter,
-                        style: Utilities.itemStyle,
                         decoration: const InputDecoration(
                             filled: true,
                             fillColor: Utilities.fieldFillColor,
                             border: OutlineInputBorder(),
-                            contentPadding: EdgeInsets.symmetric(horizontal: 10)
-                            // hintText: "All Column",
-                            // suffixIcon: Icon(Icons.search),
-                            ),
+                            contentPadding:
+                                EdgeInsets.symmetric(horizontal: 10)),
                         items: columnsItems,
                         onChanged: (value) {})),
                 SizedBox(
@@ -119,7 +112,6 @@ class _HomeViewState extends State<HomeView> {
                     height: Utilities.fieldHeight,
                     child: TextFormField(
                         key: widget._textFieldColumnFilter,
-                        style: Utilities.itemStyle,
                         decoration: const InputDecoration(
                           filled: true,
                           fillColor: Utilities.fieldFillColor,
@@ -135,8 +127,6 @@ class _HomeViewState extends State<HomeView> {
                           String? columnsExpr;
 
                           /* if filename is not null then pass that as first filter argument on special column "Sources"*/
-
-                          // String? fileName = widget.fileName;
 
                           if (widget.fileName != null) {
                             var expr = widget._utilities.filterExpression(
@@ -193,13 +183,6 @@ class _HomeViewState extends State<HomeView> {
                             widget.filterExpr = columnsExpr;
                           }
 
-                          //  else {
-                          //   /* disable filter if text field is empty */
-
-                          //   widget.filterExpr = null;
-                          // }
-
-                          // setState(() {});
                           Navigator.pushNamedAndRemoveUntil(
                               context,
                               HomeView.routeName,
@@ -265,14 +248,6 @@ class _HomeViewState extends State<HomeView> {
         widget.initialIndex =
             int.tryParse(argsAsMap[HomeView.initialIndexArg]!) ?? 0;
       }
-
-      // // /* get fileName: used in dataPage */
-
-      // if (argsAsMap.containsKey(HomeView.fileNameArg)) {
-      //   widget.fileName = argsAsMap[HomeView.fileNameArg];
-      // } else {
-      //   widget.fileName = null;
-      // }
 
       /* get filterExpr: used in dataPage */
 

@@ -11,8 +11,9 @@ class StatusView extends StatefulWidget {
   final _utilities = Utilities();
 
   var dataInitialized = false;
-  var filesStatusColumns = Completer<List<String>>();
-  late PlutoGridStateManager filesStatusTableManager;
+  var dataMonitoringColumns = <String>[];
+  PlutoGridStateManager? dataMonitoringTableManager;
+  var dataMonitoringLoading = false;
 
   StatusView({Key? key}) : super(key: key);
 
@@ -33,8 +34,15 @@ class _StatusViewState extends State<StatusView> {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: SingleChildScrollView(
+    var plutoColumns = widget._utilities
+        .generateColumnPlutoTable(widget.dataMonitoringColumns);
+
+    /* rows are completed async */
+    var plutoRows = widget._utilities
+        .generateRowsPlutoTable(<List<String>>[], widget.dataMonitoringColumns);
+
+    return SingleChildScrollView(
+      child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -45,63 +53,36 @@ class _StatusViewState extends State<StatusView> {
               style: Utilities.titleStyle,
             ),
             Center(
-              child: IconButton(
-                  onPressed: () {
-                    refreshData();
-                  },
-                  icon: const Icon(Icons.refresh)),
+              child: widget.dataMonitoringLoading
+                  ? const CircularProgressIndicator()
+                  : IconButton(
+                      onPressed: () {
+                        refreshData();
+                      },
+                      icon: const Icon(Icons.refresh)),
             ),
-            FutureBuilder<List<String>>(
-                future: widget.filesStatusColumns.future,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.done &&
-                      snapshot.hasData) {
-                    var columns = snapshot.requireData;
+            widget.dataMonitoringColumns.isNotEmpty
+                ? SizedBox(
+                    height: Utilities.fieldHeight * 10,
+                    child: PlutoGrid(
+                      columns: plutoColumns,
+                      rows: plutoRows,
+                      onChanged: (PlutoGridOnChangedEvent event) {
+                        log(event.toString());
+                      },
+                      onLoaded: (PlutoGridOnLoadedEvent event) {
+                        // if (widget.dataMonitoringTableManager == null) {
+                        widget.dataMonitoringTableManager = event.stateManager;
+                        widget.dataMonitoringTableManager?.setShowLoading(true);
 
-                    var plutoColumns =
-                        widget._utilities.generateColumnPlutoTable(columns);
-
-                    /* rows are completed async */
-                    var plutoRows = widget._utilities
-                        .generateRowsPlutoTable(<List<String>>[], columns);
-
-                    return SizedBox(
-                        height: Utilities.fieldHeight * 10,
-                        child: PlutoGrid(
-                          columns: plutoColumns,
-                          rows: plutoRows,
-                          onChanged: (PlutoGridOnChangedEvent event) {
-                            log(event.toString());
-                          },
-                          onLoaded: (PlutoGridOnLoadedEvent event) {
-                            widget.filesStatusTableManager = event.stateManager;
-                            widget.filesStatusTableManager.setShowLoading(true);
-
-                            loadFilesStatusData();
-                          },
-                          configuration: const PlutoGridConfiguration(
-                              columnSize: PlutoGridColumnSizeConfig(
-                                  autoSizeMode: PlutoAutoSizeMode.scale)),
-                        ));
-                  } else if (snapshot.connectionState ==
-                      ConnectionState.waiting) {
-                    return const Center(
-                      child: CircularProgressIndicator(),
-                    );
-                  } else {
-                    if (snapshot.hasError) {
-                      var error = snapshot.error;
-                      log("${error?.toString()}",
-                          error: error, stackTrace: snapshot.stackTrace);
-                    }
-
-                    return const Center(
-                        child: Text(
-                      "An error has occurred",
-                      style: Utilities.itemStyle,
-                    ));
-                  }
-                }),
+                        loadDataMonitoring();
+                        // }
+                      },
+                      configuration: const PlutoGridConfiguration(
+                          columnSize: PlutoGridColumnSizeConfig(
+                              autoSizeMode: PlutoAutoSizeMode.scale)),
+                    ))
+                : const Text("..."),
             /* server monitoring status */
             const Text(
               "Server Health Monitoring",
@@ -113,52 +94,53 @@ class _StatusViewState extends State<StatusView> {
     );
   }
 
-  void loadFilesStatusColumns() {
+  void loadDataMonitoringColumns() {
     setState(() {
-      widget.filesStatusColumns = Completer<List<String>>();
+      widget.dataMonitoringLoading = true;
     });
 
     widget._webAPIService.tablesStatusHeader().then((value) {
-      widget.filesStatusColumns.complete(value);
+      widget.dataMonitoringColumns.clear();
+      widget.dataMonitoringColumns.addAll(value);
     }).catchError((error, stackTrace) {
       log("${error?.toString()}", error: error, stackTrace: stackTrace);
-      widget.filesStatusColumns.completeError(error, stackTrace);
+      widget.dataMonitoringColumns.clear();
+    }).whenComplete(() {
+      setState(() {
+        widget.dataMonitoringLoading = false;
+      });
     });
   }
 
-  void loadFilesStatusData() async {
+  void loadDataMonitoring() async {
     widget._webAPIService.tablesStatus().then((value) async {
       if (value.isNotEmpty) {
-        if (widget.filesStatusColumns.isCompleted) {
-          var columns = await widget.filesStatusColumns.future;
+        var plutoColumns = widget._utilities
+            .generateColumnPlutoTable(widget.dataMonitoringColumns);
 
-          var plutoColumns =
-              widget._utilities.generateColumnPlutoTable(columns);
+        var plutoRows = widget._utilities
+            .generateRowsPlutoTable(value, widget.dataMonitoringColumns);
 
-          var plutoRows =
-              widget._utilities.generateRowsPlutoTable(value, columns);
+        PlutoGridStateManager.initializeRowsAsync(
+          plutoColumns,
+          plutoRows,
+        ).then((value) {
+          widget.dataMonitoringTableManager?.refRows.clear();
+          widget.dataMonitoringTableManager?.refRows
+              .addAll(FilteredList(initialList: value));
 
-          PlutoGridStateManager.initializeRowsAsync(
-            plutoColumns,
-            plutoRows,
-          ).then((value) {
-            widget.filesStatusTableManager.refRows.clear();
-            widget.filesStatusTableManager.refRows
-                .addAll(FilteredList(initialList: value));
-
-            widget.filesStatusTableManager.setShowLoading(false);
-          });
-        }
+          widget.dataMonitoringTableManager?.setShowLoading(false);
+        });
       } else {
-        widget.filesStatusTableManager.setShowLoading(false);
+        widget.dataMonitoringTableManager?.setShowLoading(false);
       }
     }).catchError((error, stackTrace) {
       log("${error?.toString()}", stackTrace: stackTrace);
-      widget.filesStatusTableManager.setShowLoading(false);
+      widget.dataMonitoringTableManager?.setShowLoading(false);
     });
   }
 
   void refreshData() {
-    loadFilesStatusColumns();
+    loadDataMonitoringColumns();
   }
 }

@@ -4,7 +4,7 @@ import 'package:pluto_grid/pluto_grid.dart';
 
 class Utilities {
   static String webAPI = "http://localhost:9191";
-  static const itemStyle = TextStyle(fontSize: 11);
+  // static const itemStyle = TextStyle(fontSize: 11);
   static const itemBoldStyle =
       TextStyle(fontSize: 12, fontWeight: FontWeight.bold);
   static const titleStyle =
@@ -21,7 +21,7 @@ class Utilities {
 
   static const defaultCellEmptyValue = "...";
 
-  static const sourceColumn = "Sources";
+  static const sourceColumn = "SOURCES";
 
   /// generate data table view dynamically
   // DataTable2 generateDataTable(

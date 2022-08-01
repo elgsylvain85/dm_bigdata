@@ -10,6 +10,12 @@ public class SparkConfig {
 
     @Value("${app.name}")
     String appName;
+    @Value("${app.spark-master}")
+    String appSparkMaster;
+    @Value("${app.hadoop-namenode}")
+    String hadoopNameNode;
+    @Value("${app.work-dir}")
+    transient String appWorkDir;
 
     /**
      * Apache Spark Engin
@@ -31,7 +37,13 @@ public class SparkConfig {
                 .config("spark.databricks.delta.properties.defaults.columnMapping.mode", "name")// mandatory to support
                                                                                                 // Column rename in
                                                                                                 // Delta table
+                .config("spark.network.timeout", 10000000)
+                .config("spark.sql.shuffle.partitions", 100)
+                .config("spark.executor.heartbeatInterval", 10000000)
+                .config("spark.sql.warehouse.dir", this.hadoopNameNode+this.appWorkDir+"/hive/warehouse")
+                // .config("hive.metastore.warehouse.dir", this.hadoopNameNode+this.appWorkDir+"/hive/metastore")
                 .appName(appName)
+                .master(appSparkMaster)
                 .enableHiveSupport()
                 .getOrCreate();
     }

@@ -2,6 +2,8 @@ package com.dm.bigdata.controller;
 
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.logging.Level;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.dm.bigdata.model.pojo.TableImported;
 import com.dm.bigdata.model.service.AppColumnService;
@@ -40,7 +43,8 @@ public class WebAPIController {
     @GetMapping(value = "/filestructure")
     public ResponseEntity<?> fileStructure(@RequestParam String filePath,
             @RequestParam(required = false, defaultValue = ",") String delimiter,
-            @RequestParam(required = false, defaultValue = "false") Boolean excludeHeader, @RequestParam(required = false, defaultValue = "10") Integer limit) {
+            @RequestParam(required = false, defaultValue = "false") Boolean excludeHeader,
+            @RequestParam(required = false, defaultValue = "10") Integer limit) {
 
         try {
 
@@ -53,17 +57,17 @@ public class WebAPIController {
         }
     }
 
-    @GetMapping(value = "/filestoimport")
-    public ResponseEntity<?> filesToImport() {
+    // @GetMapping(value = "/filestoimport")
+    // public ResponseEntity<?> filesToImport() {
 
-        try {
-            var data = this.sparkService.filesToImportAsPath();
-            return ResponseEntity.ok(data);
-        } catch (Exception ex) {
-            LOGGER.log(Level.SEVERE, ex.getMessage(), ex);
-            return ResponseEntity.badRequest().body(ex.getMessage());
-        }
-    }
+    //     try {
+    //         var data = this.sparkService.filesToImportAsPath();
+    //         return ResponseEntity.ok(data);
+    //     } catch (Exception ex) {
+    //         LOGGER.log(Level.SEVERE, ex.getMessage(), ex);
+    //         return ResponseEntity.badRequest().body(ex.getMessage());
+    //     }
+    // }
 
     @GetMapping(value = "/appcolumns")
     public ResponseEntity<?> appColumns() {
@@ -130,18 +134,32 @@ public class WebAPIController {
     }
 
     @PostMapping(value = "/importfile")
-    public ResponseEntity<?> importFile(@RequestParam String filePath, @RequestParam(required = false) String tableName,
-            @RequestParam String fileStructure, @RequestParam(required = false, defaultValue = ",") String delimiter,
-            @RequestParam(required = false, defaultValue = "false") Boolean excludeHeader) {
+    public ResponseEntity<?> importFile(@RequestParam String filePath, @RequestParam(required = false) String source,
+            @RequestParam String columnsMapping, @RequestParam(required = false, defaultValue = ",") String delimiter,
+            @RequestParam(required = false, defaultValue = "false") Boolean excludeHeader,
+            @RequestParam(required = false) String joinColumns) {
         try {
 
-            Map<String, String> structure = this.jsonMapper.readValue(fileStructure, Map.class);
+            Map<String, String> structure = this.jsonMapper.readValue(columnsMapping, Map.class);
 
             /* run import as independent job (thread) */
 
             new Thread(() -> {
                 try {
-                    this.sparkService.prepareImportFile(filePath, tableName, structure, delimiter, excludeHeader);
+
+                    List<String> joinColumnsAsList = null;
+
+                    if (joinColumns != null) {
+
+                        joinColumnsAsList = Arrays.asList(this.jsonMapper.readValue(joinColumns, String[].class));
+
+                    } else {
+                        //TODO : Remove this bloc when frontend start to send joinColumn from import form
+                        joinColumnsAsList = this.appColumnService.joins();
+                    }
+
+                    this.sparkService.prepareImportFile(filePath, source, structure, delimiter, excludeHeader,
+                            joinColumnsAsList);
                 } catch (Exception ex) {
                     LOGGER.log(Level.SEVERE, "Job import Error", ex);
                 }
@@ -275,6 +293,20 @@ public class WebAPIController {
             var data = SparkService.TABLES_STATUS_HEADER;
 
             return ResponseEntity.ok(data);
+        } catch (Exception ex) {
+            LOGGER.log(Level.SEVERE, ex.getMessage(), ex);
+
+            return ResponseEntity.badRequest().body(ex.getMessage());
+        }
+    }
+
+    @PostMapping(value = "/uploadfile")
+    public ResponseEntity<?> uploadFile(@RequestParam MultipartFile media) {
+        try {
+
+            var path = this.sparkService.uploadFile(media.getBytes(), media.getOriginalFilename());
+
+            return ResponseEntity.ok(path);
         } catch (Exception ex) {
             LOGGER.log(Level.SEVERE, ex.getMessage(), ex);
 

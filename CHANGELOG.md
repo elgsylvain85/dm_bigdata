@@ -62,3 +62,11 @@
     * Sinon ajouts
 - Correction bug SparkException: Task failed while writing rows => Causé par certains champs null pendant l'ecriture (non supporté par DElta lake) => Solution remplacer les champs null par ""
 
+## 0.5.3 : 29 Juillet 2022
+
+- Rendre la jointure sequentielle lorsqu'il exist plusieurs colonnes de jointures
+
+## 0.6.0 :
+
+- Integration Hadoop
+

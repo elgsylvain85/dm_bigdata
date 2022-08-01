@@ -9,16 +9,18 @@ import 'package:multi_select_flutter/multi_select_flutter.dart';
 class FilterView extends StatefulWidget {
   final _structureService = WebAPIService();
   final _utilities = Utilities();
-  // final _dropdownFilesNamesKey = GlobalKey<FormFieldState>();
-  final _multiSelectFilesNamesKey1 = GlobalKey<FormFieldState>();
-  final _dropdownColumnsFilter = <GlobalKey<FormFieldState>>[];
-  final _textFieldColumnsFilter = <GlobalKey<FormFieldState>>[];
+  // final _multiSelectFilesNamesKey1 = GlobalKey<FormFieldState>();
+  // final _dropdownColumnsFilter = <GlobalKey<FormFieldState>>[];
+  // final _textFieldColumnsFilter = <GlobalKey<FormFieldState>>[];
+  var sources = <String>[];
+  var columnsFilters = <String>[];
+  var valuesFilters = <String>[];
 
   var dataInitialized = false;
   var dataLoading = false;
 
-  var tablesNames = <String>[];
-  var columnsNames = <String>[];
+  var sourcesList = <String>[];
+  var columnsNamesList = <String>[];
   var filtersCount = 0;
 
   FilterView({Key? key}) : super(key: key);
@@ -54,7 +56,7 @@ class _FilterViewState extends State<FilterView> {
 
     filesNamesImportedItems.add(item);
 
-    for (var e in widget.tablesNames) {
+    for (var e in widget.sourcesList) {
       var fileName = e.split('/').last; // short file name
 
       var item = DropdownMenuItem<String?>(
@@ -96,23 +98,9 @@ class _FilterViewState extends State<FilterView> {
             padding: const EdgeInsets.symmetric(vertical: 10),
             child: Column(
               children: [
-                // DropdownButtonFormField<String?>(
-                //     key: widget._dropdownFilesNamesKey,
-                //     style: Utilities.itemStyle,
-                //     icon: const Icon(Icons.search),
-                //     decoration: const InputDecoration(
-                //         label: Text(
-                //           "File Name",
-                //           style: Utilities.itemStyle,
-                //         ),
-                //         filled: true,
-                //         fillColor: Utilities.fieldFillColor,
-                //         border: OutlineInputBorder(),
-                //         contentPadding: EdgeInsets.symmetric(horizontal: 10)),
-                //     items: filesNamesImportedItems,
-                //     onChanged: (value) {}),
-                MultiSelectDialogField(
-                  key: widget._multiSelectFilesNamesKey1,
+                MultiSelectDialogField<String>(
+                  key: GlobalKey<FormFieldState>(),
+                  initialValue: widget.sources,
                   searchHint: "ALL",
                   buttonText: const Text("File Name"),
                   buttonIcon: const Icon(Icons.search),
@@ -121,7 +109,10 @@ class _FilterViewState extends State<FilterView> {
                   ),
                   listType: MultiSelectListType.LIST,
                   items: filesNamesImportedItems1,
-                  onConfirm: (value) {},
+                  onConfirm: (value) {
+                    widget.sources.clear();
+                    widget.sources.addAll(value);
+                  },
                 ),
                 columnFilterViews(),
                 Row(
@@ -131,13 +122,13 @@ class _FilterViewState extends State<FilterView> {
                         onPressed: () {
                           addColumnFilterView();
                         },
-                        child: const Text("Add", style: Utilities.itemStyle),
+                        child: const Text("Add"),
                       ),
                       TextButton(
                         onPressed: () {
                           reduceColumnFilterView();
                         },
-                        child: const Text("Remove", style: Utilities.itemStyle),
+                        child: const Text("Remove"),
                       ),
                     ]),
                 ElevatedButton(
@@ -146,7 +137,6 @@ class _FilterViewState extends State<FilterView> {
                     },
                     child: const Text(
                       "Submit",
-                      style: Utilities.itemStyle,
                     ))
               ],
             ),
@@ -155,23 +145,15 @@ class _FilterViewState extends State<FilterView> {
   }
 
   void loadColumnsNames() {
-    // setState(() {
-    //   widget.dataLoading = true;
-    // });
-
     widget._structureService.appColumns().then((value) {
-      widget.columnsNames.clear();
+      widget.columnsNamesList.clear();
 
-      // setState(() {
-      widget.columnsNames.addAll(value);
-      // });
+      widget.columnsNamesList.addAll(value);
     }).catchError((error, stackTrace) {
       log("${error?.toString()}", error: error, stackTrace: stackTrace);
-      widget.columnsNames.clear();
+      widget.columnsNamesList.clear();
     }).whenComplete(() {
-      setState(() {
-        // widget.dataLoading = false;
-      });
+      setState(() {});
     });
   }
 
@@ -181,14 +163,14 @@ class _FilterViewState extends State<FilterView> {
     });
 
     widget._structureService.tablesImported().then((value) {
-      widget.tablesNames.clear();
+      widget.sourcesList.clear();
 
       // setState(() {
-      widget.tablesNames.addAll(value);
+      widget.sourcesList.addAll(value);
       // });
     }).catchError((error, stackTrace) {
       log("${error?.toString()}", error: error, stackTrace: stackTrace);
-      widget.tablesNames.clear();
+      widget.sourcesList.clear();
     }).whenComplete(() {
       setState(() {
         widget.dataLoading = false;
@@ -203,8 +185,8 @@ class _FilterViewState extends State<FilterView> {
     /* prepares items of columns names */
 
     var columnsItems = <DropdownMenuItem<String>>[];
-    for (int i = 0; i < widget.columnsNames.length; i++) {
-      var colName = widget.columnsNames[i];
+    for (int i = 0; i < widget.columnsNamesList.length; i++) {
+      var colName = widget.columnsNamesList[i];
 
       var item = DropdownMenuItem(
         value: colName,
@@ -227,31 +209,37 @@ class _FilterViewState extends State<FilterView> {
           // dropdown columns name
           SizedBox(
               width: Utilities.fieldWidth,
-              // height: Utilities.fieldHeight,
               child: DropdownButtonFormField<String>(
-                  key: widget._dropdownColumnsFilter[i],
-                  style: Utilities.itemStyle,
+                  key: GlobalKey<FormFieldState>(),
+                  value: widget.columnsFilters[i],
                   decoration: const InputDecoration(
                       filled: true,
                       fillColor: Utilities.fieldFillColor,
                       border: OutlineInputBorder(),
                       contentPadding: EdgeInsets.symmetric(horizontal: 10)),
                   items: columnsItems,
-                  onChanged: (value) {})),
+                  onChanged: (value) {
+                    if (value != null) {
+                      widget.columnsFilters[i] = value;
+                    }
+                  })),
 
           // text field filter value
           SizedBox(
               width: Utilities.fieldWidth,
               // height: Utilities.fieldHeight,
               child: TextFormField(
-                key: widget._textFieldColumnsFilter[i],
-                style: Utilities.itemStyle,
+                key: GlobalKey<FormFieldState>(),
+                initialValue: widget.valuesFilters[i],
                 decoration: const InputDecoration(
                   filled: true,
                   fillColor: Utilities.fieldFillColor,
                   border: OutlineInputBorder(),
                   contentPadding: EdgeInsets.symmetric(horizontal: 10),
                 ),
+                onChanged: (value) {
+                  widget.valuesFilters[i] = value;
+                },
               ))
         ],
       ));
@@ -277,29 +265,24 @@ class _FilterViewState extends State<FilterView> {
     /* if filename is not null then pass that as first filter argument on special column "Sources"*/
 
     // String? fileName = widget._dropdownFilesNamesKey.currentState?.value;
-    List<String> filesNames =
-        widget._multiSelectFilesNamesKey1.currentState?.value;
 
-    for (var fileName in filesNames) {
-      if (fileName != null) {
-        var expr = widget._utilities
-            .filterExpression(Utilities.sourceColumn, fileName);
+    for (var source in widget.sources) {
+      var expr =
+          widget._utilities.filterExpression(Utilities.sourceColumn, source);
 
-        if (sourcesExpr != null && sourcesExpr.trim().isNotEmpty) {
-          //use AND SQL expression
-          sourcesExpr = "$sourcesExpr or $expr";
-        } else {
-          sourcesExpr = expr;
-        }
+      if (sourcesExpr != null && sourcesExpr.trim().isNotEmpty) {
+        //use AND SQL expression
+        sourcesExpr = "$sourcesExpr and $expr";
+      } else {
+        sourcesExpr = expr;
       }
     }
 
     // create filter expression from columns if exist
 
     for (int i = 0; i < widget.filtersCount; i++) {
-      String colName = widget._dropdownColumnsFilter[i].currentState?.value;
-      String filterValue =
-          widget._textFieldColumnsFilter[i].currentState?.value;
+      String colName = widget.columnsFilters[i];
+      String filterValue = widget.valuesFilters[i];
 
       var expr = widget._utilities.filterExpression(colName, filterValue);
 
@@ -330,13 +313,13 @@ class _FilterViewState extends State<FilterView> {
   void addColumnFilterView() {
     setState(() {
       /* increase columns filter according columns names count */
-      if (widget.filtersCount < widget.columnsNames.length) {
+      if (widget.filtersCount < widget.columnsNamesList.length) {
         widget.filtersCount++;
 
-        /* add too global key to link dynamically to filter component */
+        // /* to link dynamically to filter component */
 
-        widget._dropdownColumnsFilter.add(GlobalKey<FormFieldState>());
-        widget._textFieldColumnsFilter.add(GlobalKey<FormFieldState>());
+        widget.columnsFilters.add(widget.columnsNamesList[widget.filtersCount]);
+        widget.valuesFilters.add("");
       }
     });
   }
@@ -349,8 +332,8 @@ class _FilterViewState extends State<FilterView> {
         widget.filtersCount--;
 
         /* remove too global key */
-        widget._dropdownColumnsFilter.removeLast();
-        widget._textFieldColumnsFilter.removeLast();
+        widget.columnsFilters.removeLast();
+        widget.valuesFilters.removeLast();
       }
     });
   }
