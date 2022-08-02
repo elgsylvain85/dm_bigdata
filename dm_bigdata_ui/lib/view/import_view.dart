@@ -137,15 +137,25 @@ class _ImportViewState extends State<ImportView> {
                                     widget.dataLoading = true;
                                   });
 
-                                  widget._webAPIService
-                                      .uploadFile(file)
-                                      .then((value) {
+                                  widget._webAPIService.uploadFile(file,
+                                      onUploadProgress:
+                                          ((sentBytes, totalBytes) {
+                                    var progress =
+                                        (sentBytes * 100) / totalBytes;
+
+                                    setState(() {
+                                      widget.fileChosenName = "$progress %";
+                                    });
+                                  })).then((value) {
                                     // setState(() {
-                                    widget.fileChosenName = file.name;
+                                    widget.newSource = file.name;
+                                    widget.fileChosenName = file.path;
                                     widget.importPath = value;
                                     // });
                                   }).catchError((error, stackTrace) {
                                     var errorMsg = "${error?.toString()}";
+
+                                    widget.fileChosenName = null;
 
                                     log(errorMsg, stackTrace: stackTrace);
 
@@ -211,6 +221,9 @@ class _ImportViewState extends State<ImportView> {
                           onSaved: (value) {
                             widget.newSource = value;
                           },
+                          onChanged: (value) {
+                            widget.newSource = value;
+                          },
                         ),
                       ),
                       Padding(
@@ -263,7 +276,7 @@ class _ImportViewState extends State<ImportView> {
                                         return const AlertDialog(
                                             title: Text("Error"),
                                             content: SelectableText(
-                                                "Please check data"));
+                                                "Please complete and check input data"));
                                       });
                                 }
                               },

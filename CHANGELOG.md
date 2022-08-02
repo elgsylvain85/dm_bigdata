@@ -71,7 +71,12 @@
 - Integration Hadoop
 - Pick file to import directly from form
 
-## 0.6.1 : 
+## 0.6.1 : 01 Aout 2022
 
 - Correction bug "Out of memory" while large file importing => Send by stream
+
+## 0.6.2 : 
+
+- Correction bug dans data status
+- Monitoring chargement fichier
 
