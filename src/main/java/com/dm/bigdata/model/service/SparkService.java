@@ -238,7 +238,7 @@ public class SparkService {
                 ds.coalesce(1).write().option("header", true).csv(path);
 
                 // SparkService.dataStatus.put(fileName,
-                //         new String[] { fileName, String.valueOf(totalCount), "EXPORTED", });
+                // new String[] { fileName, String.valueOf(totalCount), "EXPORTED", });
                 SparkService.dataStatus.put(fileName,
                         new String[] { fileName, "-", "EXPORTED", });
 
@@ -770,14 +770,14 @@ public class SparkService {
             result.add(SparkService.dataStatus.get(k));
         }
 
-        // /* tables imported log */
+        /* tables imported log */
 
-        // for (var e : this.tableImportedDao.findAll()) {
+        for (var e : this.tableImportedDao.findAll()) {
 
-        // result.add(new String[] { e.getTableName(),
-        // String.valueOf(e.getRowsCount().longValue()), "DONE", });
+            result.add(new String[] { e.getTableName(),
+                    String.valueOf(e.getRowsCount().longValue()), "DONE", });
 
-        // }
+        }
 
         // /* all existants tables */
 
