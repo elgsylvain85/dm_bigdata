@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
-import 'dart:io';
+// import 'dart:io';
 
 import 'package:dm_bigdata_ui/utility/utilities.dart';
 import 'package:file_picker/src/platform_file.dart';
@@ -362,63 +362,53 @@ class WebAPIService {
   }
 
   Future<String> uploadFile(PlatformFile file,
-      {OnUploadProgressCallback? onUploadProgress}) async {
+      {void Function(int, int)? onProgress}) async {
     var url = Uri.parse("${Utilities.webAPI}/webapi/uploadfile");
 
     var fileReadStream = file.readStream;
 
     if (fileReadStream != null) {
-      final fileStream = http.ByteStream(file.readStream!);
+      // int byteCount = 0;
 
-      final httpClient = HttpClient();
+      // var stream = http.ByteStream(file.readStream!);
 
-      final request = await httpClient.postUrl(url);
+      // Stream<List<int>> streamUpload = fileReadStream.transform(
+      //   StreamTransformer.fromHandlers(
+      //     handleData: (data, sink) {
+      //       sink.add(data);
 
-      int byteCount = 0;
+      //       byteCount += data.length;
 
-      var multipart = http.MultipartFile("media", fileStream, file.size,
+      //       if (onUploadProgress != null) {
+      //         onUploadProgress(byteCount, file.size);
+      //         // CALL STATUS CALLBACK;
+      //       }
+      //     },
+      //     handleError: (error, stack, sink) {
+      //       throw error;
+      //     },
+      //     handleDone: (sink) {
+      //       sink.close();
+      //       // UPLOAD DONE;
+      //     },
+      //   ),
+      // );
+
+      var multipart = http.MultipartFile("media", fileReadStream, file.size,
           filename: file.name);
 
-      var requestMultipart = http.MultipartRequest("", Uri.parse("uri"));
+      var requestMultipart =
+          LocalMultipartRequest("POST", url, onProgress: onProgress);
 
       requestMultipart.files.add(multipart);
 
-      var msStream = requestMultipart.finalize();
+      // await request.addStream(streamUpload);
 
-      var totalByteLength = requestMultipart.contentLength;
+      // final httpResponse = await request.close();
 
-      request.contentLength = totalByteLength;
-
-      request.headers.set(HttpHeaders.contentTypeHeader,
-          requestMultipart.headers[HttpHeaders.contentTypeHeader] ?? "");
-
-      Stream<List<int>> streamUpload = msStream.transform(
-        StreamTransformer.fromHandlers(
-          handleData: (data, sink) {
-            sink.add(data);
-
-            byteCount += data.length;
-
-            if (onUploadProgress != null) {
-              onUploadProgress(byteCount, totalByteLength);
-              // CALL STATUS CALLBACK;
-            }
-          },
-          handleError: (error, stack, sink) {
-            throw error;
-          },
-          handleDone: (sink) {
-            sink.close();
-            // UPLOAD DONE;
-          },
-        ),
-      );
-
-      await request.addStream(streamUpload);
-
-      final httpResponse = await request.close();
-
-      var data = await readResponseAsString(httpResponse);
+      var httpResponse = await requestMultipart.send();
+      var body = await httpResponse.stream.toBytes();
+      var data = String.fromCharCodes(body);
 
       if (httpResponse.statusCode ~/ 100 == 2) {
         return data;
@@ -429,13 +419,42 @@ class WebAPIService {
       throw Exception("Cannot read file from stream");
     }
   }
+}
 
-  static Future<String> readResponseAsString(HttpClientResponse response) {
-    var completer = Completer<String>();
-    var contents = StringBuffer();
-    response.transform(utf8.decoder).listen((String data) {
-      contents.write(data);
-    }, onDone: () => completer.complete(contents.toString()));
-    return completer.future;
+class LocalMultipartRequest extends http.MultipartRequest {
+  /// Creates a new [LocalMultipartRequest].
+  LocalMultipartRequest(
+    String method,
+    Uri url, {
+    this.onProgress,
+  }) : super(method, url);
+
+  final void Function(int bytes, int totalBytes)? onProgress;
+
+  /// Freezes all mutable fields and returns a single-subscription [ByteStream]
+  /// that will emit the request body.
+  @override
+  http.ByteStream finalize() {
+    final byteStream = super.finalize();
+    if (onProgress == null) return byteStream;
+
+    final total = contentLength;
+    int bytes = 0;
+
+    final t = StreamTransformer.fromHandlers(
+      handleData: (List<int> data, EventSink<List<int>> sink) {
+        bytes += data.length;
+
+        if (onProgress != null) {
+          onProgress!(bytes, total);
+        }
+
+        if (total >= bytes) {
+          sink.add(data);
+        }
+      },
+    );
+    final stream = byteStream.transform(t);
+    return http.ByteStream(stream);
   }
 }

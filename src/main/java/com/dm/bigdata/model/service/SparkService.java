@@ -385,16 +385,21 @@ public class SparkService {
 
                 /* join if join data already exists and joinColumns is not empty */
 
+                /* save import data as table temp table before join */
+
+                dataImport.createOrReplaceTempView(sourceName);
+                var tempTable = instance.sparkSession.sqlContext().table(sourceName).cache();
+
                 SparkService.dataStatus.put(sourceName,
                         new String[] { sourceName, String.valueOf(dataImportCount),
                                 "JOINING ON " + joinColumns, });
 
-                /* apply join from existant data with data imported */
+                /* apply join from existant data with temp table (from data imported) */
 
                 var dataJoinTableName = SPARK_DATABASE + "." + SparkService.JOIN_TABLE_NAME;
                 var dataJoin = instance.sparkSession.sqlContext().table(dataJoinTableName);
 
-                dataJoin = instance.joinWithMapProcess(dataJoin, dataImport, columns, joinColumns);
+                dataJoin = instance.joinWithMapProcess(dataJoin, tempTable, columns, joinColumns);
 
                 /* then overwrite result of jointure as base */
 
@@ -408,8 +413,16 @@ public class SparkService {
                         .option("overwriteSchema", "true")
                         .saveAsTable(SparkService.JOIN_TABLE_NAME);
 
-                dataJoin.unpersist(true);
-                dataImport.unpersist(true);
+                /* free memory */
+                try {
+                    dataJoin.unpersist(true);
+                    instance.sparkSession.catalog().uncacheTable(sourceName);
+                    instance.sparkSession.catalog().dropTempView(sourceName);
+                    dataImport.unpersist(true);
+
+                } catch (Exception ex) {
+                    SparkService.LOGGER.log(Level.WARNING, "free memory after join failed", ex);
+                }
 
             } else {
 
@@ -518,7 +531,7 @@ public class SparkService {
 
         /* merge columns to avoid ambigues column */
 
-        dataJoin = dataJoin.map(new SparkService.JoinFunction(), dataImport.encoder()).select(columns);
+        dataJoin = dataJoin.repartition(128).map(new SparkService.JoinFunction(), dataImport.encoder()).select(columns);
 
         return dataJoin;
     }

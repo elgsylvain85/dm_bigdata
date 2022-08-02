@@ -38,7 +38,7 @@ public class SparkConfig {
                                                                                                 // Column rename in
                                                                                                 // Delta table
                 .config("spark.network.timeout", 10000000)
-                .config("spark.sql.shuffle.partitions", 100)
+                .config("spark.sql.shuffle.partitions", 500)
                 .config("spark.executor.heartbeatInterval", 10000000)
                 .config("spark.sql.warehouse.dir", this.hadoopNameNode+this.appWorkDir+"/hive/warehouse")
                 // .config("hive.metastore.warehouse.dir", this.hadoopNameNode+this.appWorkDir+"/hive/metastore")

@@ -138,10 +138,9 @@ class _ImportViewState extends State<ImportView> {
                                   });
 
                                   widget._webAPIService.uploadFile(file,
-                                      onUploadProgress:
-                                          ((sentBytes, totalBytes) {
+                                      onProgress: ((sentBytes, totalBytes) {
                                     var progress =
-                                        (sentBytes * 100) / totalBytes;
+                                        (sentBytes * 100) ~/ totalBytes;
 
                                     setState(() {
                                       widget.fileChosenName = "$progress %";
@@ -149,7 +148,7 @@ class _ImportViewState extends State<ImportView> {
                                   })).then((value) {
                                     // setState(() {
                                     widget.newSource = file.name;
-                                    widget.fileChosenName = file.path;
+                                    widget.fileChosenName = file.name;
                                     widget.importPath = value;
                                     // });
                                   }).catchError((error, stackTrace) {

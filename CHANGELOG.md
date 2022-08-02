@@ -80,3 +80,7 @@
 - Correction bug dans data status
 - Monitoring chargement fichier
 
+## 0.6.3 : 02 Aout 2022
+
+- Save import data as temp table before apply join
+
