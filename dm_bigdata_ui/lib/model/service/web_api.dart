@@ -360,19 +360,27 @@ class WebAPIService {
   Future<String> uploadFile(PlatformFile file) async {
     var url = Uri.parse("${Utilities.webAPI}/webapi/uploadfile");
 
-    var multipart = http.MultipartFile.fromBytes("media", file.bytes!.toList(),
-        filename: file.name);
+    var fileReadStream = file.readStream;
 
-    var request = http.MultipartRequest("POST", url)..files.add(multipart);
+    if (fileReadStream != null) {
+      var stream = http.ByteStream(file.readStream!);
 
-    var response = await request.send();
+      var multipart =
+          http.MultipartFile("media", stream, file.size, filename: file.name);
 
-    if (response.statusCode >= 200 && response.statusCode <= 299) {
-      var body = await response.stream.toBytes();
-      return String.fromCharCodes(body);
+      var request = http.MultipartRequest("POST", url)..files.add(multipart);
+
+      var response = await request.send();
+
+      if (response.statusCode >= 200 && response.statusCode <= 299) {
+        var body = await response.stream.toBytes();
+        return String.fromCharCodes(body);
+      } else {
+        var body = await response.stream.toBytes();
+        throw Exception(String.fromCharCodes(body));
+      }
     } else {
-      var body = await response.stream.toBytes();
-      throw Exception(String.fromCharCodes(body));
+      throw Exception("Cannot read file from stream");
     }
   }
 }

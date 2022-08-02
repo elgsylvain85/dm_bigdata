@@ -126,8 +126,8 @@ class _ImportViewState extends State<ImportView> {
                         children: [
                           ElevatedButton(
                               onPressed: () async {
-                                var filePickerResult =
-                                    await FilePicker.platform.pickFiles();
+                                var filePickerResult = await FilePicker.platform
+                                    .pickFiles(withReadStream: true);
 
                                 if (filePickerResult != null) {
                                   /* star load file to server */

@@ -61,7 +61,8 @@ class _StatusViewState extends State<StatusView> {
                       },
                       icon: const Icon(Icons.refresh)),
             ),
-            widget.dataMonitoringColumns.isNotEmpty
+            widget.dataMonitoringColumns.isNotEmpty &&
+                    !widget.dataMonitoringLoading
                 ? SizedBox(
                     height: Utilities.fieldHeight * 10,
                     child: PlutoGrid(
@@ -102,6 +103,8 @@ class _StatusViewState extends State<StatusView> {
     widget._webAPIService.tablesStatusHeader().then((value) {
       widget.dataMonitoringColumns.clear();
       widget.dataMonitoringColumns.addAll(value);
+
+      // widget.dataMonitoringTableManager?.forceUpdate();
     }).catchError((error, stackTrace) {
       log("${error?.toString()}", error: error, stackTrace: stackTrace);
       widget.dataMonitoringColumns.clear();

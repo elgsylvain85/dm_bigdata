@@ -66,7 +66,12 @@
 
 - Rendre la jointure sequentielle lorsqu'il exist plusieurs colonnes de jointures
 
-## 0.6.0 :
+## 0.6.0 : 01 Aout 2022
 
 - Integration Hadoop
+- Pick file to import directly from form
+
+## 0.6.1 : 
+
+- Correction bug "Out of memory" while large file importing => Send by stream
 
