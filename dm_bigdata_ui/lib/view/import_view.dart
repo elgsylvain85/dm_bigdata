@@ -254,6 +254,18 @@ class _ImportViewState extends State<ImportView> {
                               setState(() {
                                 widget.excludeHeader = value;
                               });
+
+                              /* if filepreview already exist then refresh */
+                              if (widget.filePreviewData != null) {
+                                if ((widget._importFormKey.currentState
+                                            ?.validate() ??
+                                        false) &&
+                                    widget.importPath != null) {
+                                  widget._importFormKey.currentState?.save();
+
+                                  loadPreviewFile();
+                                }
+                              }
                             }
                           }),
                       Row(

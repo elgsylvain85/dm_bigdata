@@ -15,7 +15,18 @@ public class SparkConfig {
     @Value("${app.hadoop-namenode}")
     String hadoopNameNode;
     @Value("${app.work-dir}")
-    transient String appWorkDir;
+    String appWorkDir;
+
+    @Value("${spark.network.timeout}")
+    String sparkNetworkTimeout;
+    @Value("${spark.sql.shuffle.partitions}")
+    String sparkSqlShufflePartitions;
+    @Value("${spark.executor.heartbeatInterval}")
+    String sparkExecutorHeartbeatInterval;
+    @Value("${spark.driver.memory}")
+    String sparkDriverMemory;
+    @Value("${spark.executor.memory}")
+    String sparkExecutorMemory;
 
     /**
      * Apache Spark Engin
@@ -37,11 +48,14 @@ public class SparkConfig {
                 .config("spark.databricks.delta.properties.defaults.columnMapping.mode", "name")// mandatory to support
                                                                                                 // Column rename in
                                                                                                 // Delta table
-                .config("spark.network.timeout", 10000000)
-                .config("spark.sql.shuffle.partitions", 500)
-                .config("spark.executor.heartbeatInterval", 10000000)
-                .config("spark.sql.warehouse.dir", this.hadoopNameNode+this.appWorkDir+"/hive/warehouse")
-                // .config("hive.metastore.warehouse.dir", this.hadoopNameNode+this.appWorkDir+"/hive/metastore")
+                .config("spark.network.timeout", Integer.valueOf(this.sparkNetworkTimeout))
+                .config("spark.sql.shuffle.partitions", Integer.valueOf(this.sparkSqlShufflePartitions))
+                .config("spark.executor.heartbeatInterval", Integer.valueOf(this.sparkExecutorHeartbeatInterval))
+                .config("spark.sql.warehouse.dir", this.hadoopNameNode + this.appWorkDir + "/hive/warehouse")
+                .config("spark.driver.memory", this.sparkDriverMemory)
+                .config("spark.executor.memory", this.sparkExecutorMemory)
+                // .config("hive.metastore.warehouse.dir",
+                // this.hadoopNameNode+this.appWorkDir+"/hive/metastore")
                 .appName(appName)
                 .master(appSparkMaster)
                 .enableHiveSupport()

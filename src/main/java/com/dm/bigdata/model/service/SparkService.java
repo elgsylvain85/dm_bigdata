@@ -143,6 +143,9 @@ public class SparkService {
     @Value("${app.hadoop-namenode}")
     transient String hadoopNameNode;
 
+    @Value("${app.spark-join-partitions}")
+    transient String appSparkJoinPartitions;
+
     public Map<String, Object> dataAsMap(
             int offset,
             int limit,
@@ -407,7 +410,7 @@ public class SparkService {
                         new String[] { sourceName, String.valueOf(dataImportCount),
                                 "JOIN APPENDING ON " + joinColumns, });
 
-                dataJoin.repartition(128).write()
+                dataJoin.repartition(Integer.valueOf(instance.appSparkJoinPartitions)).write()
                         .format("delta")
                         .mode(SaveMode.Overwrite)
                         .option("overwriteSchema", "true")
@@ -415,10 +418,10 @@ public class SparkService {
 
                 /* free memory */
                 try {
-                    dataJoin.unpersist(true);
+                    // dataJoin.unpersist(true);
                     instance.sparkSession.catalog().uncacheTable(sourceName);
                     instance.sparkSession.catalog().dropTempView(sourceName);
-                    dataImport.unpersist(true);
+                    // dataImport.unpersist(true);
 
                 } catch (Exception ex) {
                     SparkService.LOGGER.log(Level.WARNING, "free memory after join failed", ex);
@@ -531,7 +534,8 @@ public class SparkService {
 
         /* merge columns to avoid ambigues column */
 
-        dataJoin = dataJoin.repartition(128).map(new SparkService.JoinFunction(), dataImport.encoder()).select(columns);
+        dataJoin = dataJoin.repartition(Integer.valueOf(this.appSparkJoinPartitions))
+                .map(new SparkService.JoinFunction(), dataImport.encoder()).select(columns);
 
         return dataJoin;
     }

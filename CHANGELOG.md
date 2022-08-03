@@ -84,3 +84,7 @@
 
 - Save import data as temp table before apply join
 
+## 0.6.4 : 03 Aout 2022
+
+- Inclure driver-memory dans ./config/applications.properties
+
