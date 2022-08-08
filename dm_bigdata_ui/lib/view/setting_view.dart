@@ -3,26 +3,35 @@ import 'dart:developer';
 import 'package:dm_bigdata_ui/model/service/web_api.dart';
 import 'package:dm_bigdata_ui/utility/utilities.dart';
 import 'package:flutter/material.dart';
+import 'package:multi_select_flutter/dialog/multi_select_dialog_field.dart';
+import 'package:multi_select_flutter/util/multi_select_item.dart';
+import 'package:multi_select_flutter/util/multi_select_list_type.dart';
 
 class SettingView extends StatefulWidget {
   final _webAPIService = WebAPIService();
-  final _textFieldEditColumnKey = GlobalKey<FormFieldState>();
-  final _dropdownEditColumnKey = GlobalKey<FormFieldState>();
-  final _textFieldAddColumnKey = GlobalKey<FormFieldState>();
-  final _dropdownDeleteColumnKey = GlobalKey<FormFieldState>();
-  final _dropdownDeleteTableKey = GlobalKey<FormFieldState>();
+  // final _textFieldEditColumnKey = GlobalKey<FormFieldState>();
+  // final _dropdownEditColumnKey = GlobalKey<FormFieldState>();
+  // final _textFieldAddColumnKey = GlobalKey<FormFieldState>();
+  // final _dropdownDeleteColumnKey = GlobalKey<FormFieldState>();
+  // final _dropdownDeleteTableKey = GlobalKey<FormFieldState>();
 
   var dataInitialized = false;
   var dataLoading = false;
 
-  var tablesNames = <String>[];
-  var appColumns = <String>[];
+  var sourcesList = <String>[];
+  var columnsList = <String>[];
   var joinColumns = <String>[];
 
   var editColumnLoading = false;
   var addColumnLoading = false;
   var deleteColumnLoading = false;
   var deleteIndexLoading = false;
+
+  String? editColumnChoose;
+  var editColumnValue = "";
+  var addColumnValue = "";
+  String? deleteColumnChoose;
+  String? deleteSourceChoose;
 
   SettingView({Key? key}) : super(key: key);
 
@@ -47,48 +56,68 @@ class _SettingViewState extends State<SettingView> {
 
     /* Items tables names */
 
-    var tablesNamesItems = <DropdownMenuItem<String?>>[];
+    var sourcesItems = <DropdownMenuItem<String?>>[];
 
     item = const DropdownMenuItem<String?>(
       value: null,
       child: Text("Clear all"),
     );
 
-    tablesNamesItems.add(item);
+    sourcesItems.add(item);
 
-    // for (var e in widget.tablesNames) {
-    //   item = DropdownMenuItem<String?>(
-    //     value: e,
-    //     child: Text(e),
-    //   );
+    for (var e in widget.sourcesList) {
+      item = DropdownMenuItem<String?>(
+        value: e,
+        child: Text(e),
+      );
 
-    //   tablesNamesItems.add(item);
-    // }
+      sourcesItems.add(item);
+    }
 
     /* Items app columns */
 
-    var appColumnsItems = <DropdownMenuItem<String?>>[];
+    var columnsItems = <DropdownMenuItem<String?>>[];
 
     item = const DropdownMenuItem<String?>(
       value: null,
       child: Text("Choose column"),
     );
 
-    appColumnsItems.add(item);
+    columnsItems.add(item);
 
-    for (var e in widget.appColumns) {
+    for (var e in widget.columnsList) {
       item = DropdownMenuItem<String?>(
         value: e,
         child: Text(e),
       );
 
-      appColumnsItems.add(item);
+      columnsItems.add(item);
+    }
+
+    /* Columns items 1*/
+
+    var columnsMultiItems = <MultiSelectItem<String>>[];
+
+    for (var e in widget.columnsList) {
+      item = MultiSelectItem<String>(e, e);
+
+      columnsMultiItems.add(item);
+    }
+
+    /* Sources items 1*/
+
+    var sourcesMultiItems = <MultiSelectItem<String>>[];
+
+    for (var e in widget.sourcesList) {
+      item = MultiSelectItem<String>(e, e);
+
+      sourcesMultiItems.add(item);
     }
 
     /* Build */
 
-    return Center(
-        child: SingleChildScrollView(
+    return SingleChildScrollView(
+        child: Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -105,38 +134,42 @@ class _SettingViewState extends State<SettingView> {
           ),
           /* Edit column */
           Container(
-              width: Utilities.fieldWidth,
+              width: Utilities.formWidth,
               margin: const EdgeInsets.symmetric(vertical: 10),
               child: Column(
                 children: [
                   DropdownButtonFormField<String?>(
-                    key: widget._dropdownEditColumnKey,
+                    key: GlobalKey<FormFieldState>(),
+                    value: widget.editColumnChoose,
                     decoration: const InputDecoration(
                         filled: true,
                         fillColor: Utilities.fieldFillColor,
                         border: OutlineInputBorder(),
                         contentPadding: EdgeInsets.symmetric(horizontal: 10),
                         labelText: "Edit Column"),
-                    items: appColumnsItems,
+                    items: columnsItems,
                     onChanged: (value) {
+                      widget.editColumnChoose = value;
+
                       /* update edit column text field */
 
-                      if (value != null) {
-                        widget._textFieldEditColumnKey.currentState!
-                            .didChange(value);
-                      } else {
-                        widget._textFieldEditColumnKey.currentState!.reset();
-                      }
+                      setState(() {
+                        widget.editColumnValue = value ?? "";
+                      });
                     },
                   ),
                   TextFormField(
-                    key: widget._textFieldEditColumnKey,
+                    key: GlobalKey<FormFieldState>(),
+                    initialValue: widget.editColumnValue,
                     decoration: const InputDecoration(
                         filled: true,
                         fillColor: Utilities.fieldFillColor,
                         border: OutlineInputBorder(),
                         contentPadding: EdgeInsets.symmetric(horizontal: 10),
                         hintText: "Modified column"),
+                    onChanged: (value) {
+                      widget.editColumnValue = value;
+                    },
                   ),
                   Align(
                     alignment: Alignment.centerRight,
@@ -144,14 +177,10 @@ class _SettingViewState extends State<SettingView> {
                         ? const CircularProgressIndicator()
                         : ElevatedButton(
                             onPressed: () {
-                              String? oldColumnName = widget
-                                  ._dropdownEditColumnKey.currentState?.value;
+                              String? oldColumnName = widget.editColumnChoose;
 
                               if (oldColumnName != null) {
-                                String newColumnName = widget
-                                    ._textFieldEditColumnKey
-                                    .currentState
-                                    ?.value;
+                                String newColumnName = widget.editColumnValue;
 
                                 saveAppColumn(oldColumnName, newColumnName);
                               } else {
@@ -166,12 +195,13 @@ class _SettingViewState extends State<SettingView> {
 
           /* Add column */
           Container(
-              width: Utilities.fieldWidth,
+              width: Utilities.formWidth,
               margin: const EdgeInsets.symmetric(vertical: 10),
               child: Column(
                 children: [
                   TextFormField(
-                    key: widget._textFieldAddColumnKey,
+                    key: GlobalKey<FormFieldState>(),
+                    initialValue: widget.addColumnValue,
                     decoration: const InputDecoration(
                         filled: true,
                         fillColor: Utilities.fieldFillColor,
@@ -179,6 +209,9 @@ class _SettingViewState extends State<SettingView> {
                         contentPadding: EdgeInsets.symmetric(horizontal: 10),
                         hintText: "New column",
                         labelText: "Add Column"),
+                    onChanged: (value) {
+                      widget.addColumnValue = value;
+                    },
                   ),
                   Align(
                     alignment: Alignment.centerRight,
@@ -186,8 +219,7 @@ class _SettingViewState extends State<SettingView> {
                         ? const CircularProgressIndicator()
                         : ElevatedButton(
                             onPressed: () {
-                              String newColumnName = widget
-                                  ._textFieldAddColumnKey.currentState?.value;
+                              String newColumnName = widget.addColumnValue;
 
                               saveAppColumn(null, newColumnName);
                             },
@@ -199,20 +231,22 @@ class _SettingViewState extends State<SettingView> {
 
           /* Delete column */
           Container(
-              width: Utilities.fieldWidth,
+              width: Utilities.formWidth,
               margin: const EdgeInsets.symmetric(vertical: 10),
               child: Column(
                 children: [
                   DropdownButtonFormField<String?>(
-                    key: widget._dropdownDeleteColumnKey,
+                    key: GlobalKey<FormFieldState>(),
+                    value: widget.deleteColumnChoose,
                     decoration: const InputDecoration(
                         filled: true,
                         fillColor: Utilities.fieldFillColor,
                         border: OutlineInputBorder(),
                         contentPadding: EdgeInsets.symmetric(horizontal: 10),
                         labelText: "Delete Column"),
-                    items: appColumnsItems,
+                    items: columnsItems,
                     onChanged: (value) {
+                      widget.deleteColumnChoose = value;
                       log("$value");
                     },
                   ),
@@ -222,8 +256,7 @@ class _SettingViewState extends State<SettingView> {
                         ? const CircularProgressIndicator()
                         : ElevatedButton(
                             onPressed: () {
-                              String? columnName = widget
-                                  ._dropdownDeleteColumnKey.currentState?.value;
+                              String? columnName = widget.deleteColumnChoose;
 
                               if (columnName != null) {
                                 deleteColumn(columnName);
@@ -240,30 +273,30 @@ class _SettingViewState extends State<SettingView> {
           /* Delete table */
 
           Container(
-              width: Utilities.fieldWidth,
+              width: Utilities.formWidth,
               margin: const EdgeInsets.fromLTRB(0, 10, 0, 10),
               child: Column(
                 children: [
                   DropdownButtonFormField<String?>(
-                      key: widget._dropdownDeleteTableKey,
+                      key: GlobalKey<FormFieldState>(),
+                      value: widget.deleteSourceChoose,
                       decoration: const InputDecoration(
                           filled: true,
                           fillColor: Utilities.fieldFillColor,
                           border: OutlineInputBorder(),
                           contentPadding: EdgeInsets.symmetric(horizontal: 10),
                           labelText: "Delete Index"),
-                      items: tablesNamesItems,
-                      onChanged: (value) {}),
+                      items: sourcesItems,
+                      onChanged: (value) {
+                        widget.deleteSourceChoose = value;
+                      }),
                   Align(
                       alignment: Alignment.centerRight,
                       child: widget.deleteIndexLoading
                           ? const CircularProgressIndicator()
                           : ElevatedButton(
                               onPressed: () {
-                                String? tableName = widget
-                                    ._dropdownDeleteTableKey
-                                    .currentState
-                                    ?.value;
+                                String? tableName = widget.deleteSourceChoose;
 
                                 // if (tableName != null) {
                                 dropTable(tableName);
@@ -275,12 +308,68 @@ class _SettingViewState extends State<SettingView> {
                             ))
                 ],
               )),
-          ElevatedButton(
-            onPressed: () {
-              showJoinForm();
-            },
-            child: const Text("Joincture"),
-          ),
+
+          /* Joins columns */
+
+          Container(
+              width: Utilities.formWidth,
+              margin: const EdgeInsets.fromLTRB(0, 10, 0, 10),
+              child: Column(children: [
+                MultiSelectDialogField<String>(
+                  key: GlobalKey<FormFieldState>(),
+                  initialValue: widget.joinColumns,
+                  searchHint: "Filters",
+                  buttonText: const Text("Filters Columns"),
+                  decoration: BoxDecoration(
+                    border: Border.all(),
+                  ),
+                  listType: MultiSelectListType.LIST,
+                  items: columnsMultiItems,
+                  onConfirm: (value) {
+                    widget.joinColumns.clear();
+                    widget.joinColumns.addAll(value);
+
+                    for (var e in widget.columnsList) {
+                      /* if column exist in joinlist then update join value to true */
+
+                      if (widget.joinColumns.contains(e)) {
+                        updateJoin(e, true);
+                      }
+
+                      /* else update value to false */
+
+                      else {
+                        updateJoin(e, false);
+                      }
+                    }
+                  },
+                ),
+              ])),
+
+          /* Apply Join */
+
+          Container(
+              width: Utilities.formWidth,
+              margin: const EdgeInsets.fromLTRB(0, 10, 0, 10),
+              child: Column(children: [
+                MultiSelectDialogField<String>(
+                  key: GlobalKey<FormFieldState>(),
+                  // initialValue: widget.joinSourcesToApply,
+                  searchHint: "Join To Apply",
+                  buttonText: const Text("Join Source to apply"),
+                  decoration: BoxDecoration(
+                    border: Border.all(),
+                  ),
+                  listType: MultiSelectListType.LIST,
+                  items: sourcesMultiItems,
+                  onConfirm: (value) {
+                    // widget.joinSourcesToApply.clear();
+                    // widget.joinSourcesToApply.addAll(value);
+
+                    applyJoinSources(value);
+                  },
+                ),
+              ])),
         ],
       ),
     ));
@@ -292,14 +381,14 @@ class _SettingViewState extends State<SettingView> {
     });
 
     widget._webAPIService.tablesImported().then((value) {
-      widget.tablesNames.clear();
+      widget.sourcesList.clear();
 
       // setState(() {
-      widget.tablesNames.addAll(value);
+      widget.sourcesList.addAll(value);
       // });
     }).catchError((error, stackTrace) {
       log("${error?.toString()}", error: error, stackTrace: stackTrace);
-      widget.tablesNames.clear();
+      widget.sourcesList.clear();
     }).whenComplete(() {
       setState(() {
         widget.dataLoading = false;
@@ -312,14 +401,14 @@ class _SettingViewState extends State<SettingView> {
       widget.dataLoading = true;
     });
     widget._webAPIService.appColumns().then((value) {
-      widget.appColumns.clear();
+      widget.columnsList.clear();
 
       // setState(() {
-      widget.appColumns.addAll(value);
+      widget.columnsList.addAll(value);
       // });
     }).catchError((error, stackTrace) {
       log("${error?.toString()}", error: error, stackTrace: stackTrace);
-      widget.appColumns.clear();
+      widget.columnsList.clear();
     }).whenComplete(() {
       setState(() {
         widget.dataLoading = false;
@@ -359,10 +448,9 @@ class _SettingViewState extends State<SettingView> {
 
       /* refresh data */
 
-      widget._dropdownEditColumnKey.currentState?.reset();
-      widget._textFieldEditColumnKey.currentState?.reset();
-      widget._textFieldAddColumnKey.currentState
-          ?.reset(); // text field in case of new creation
+      widget.editColumnChoose = null;
+      widget.editColumnValue = "";
+      widget.addColumnValue = ""; // text field in case of new creation
       loadAppColumns();
     }).catchError((error, stackTrace) {
       log("${error?.toString()}", error: error, stackTrace: stackTrace);
@@ -390,10 +478,10 @@ class _SettingViewState extends State<SettingView> {
 
       /* refresh data */
 
-      widget._textFieldEditColumnKey.currentState?.reset();
-      widget._dropdownEditColumnKey.currentState?.reset();
-      widget._textFieldAddColumnKey.currentState?.reset();
-      widget._dropdownDeleteColumnKey.currentState?.reset();
+      widget.editColumnValue = "";
+      widget.editColumnChoose = null;
+      widget.addColumnValue = "";
+      widget.deleteColumnChoose = null;
       loadAppColumns();
     }).catchError((error, stackTrace) {
       log("${error?.toString()}", error: error, stackTrace: stackTrace);
@@ -432,7 +520,7 @@ class _SettingViewState extends State<SettingView> {
 
       /* reset form */
 
-      widget._dropdownDeleteTableKey.currentState?.reset();
+      widget.deleteSourceChoose = null;
       loadTablesNames();
     }).catchError((error, stackTrace) {
       log("${error?.toString()}", error: error, stackTrace: stackTrace);
@@ -450,7 +538,7 @@ class _SettingViewState extends State<SettingView> {
   void showJoinForm() {
     var joinsValues = <String, bool>{};
 
-    for (var col in widget.appColumns) {
+    for (var col in widget.columnsList) {
       var value = widget.joinColumns.contains(col);
       joinsValues.putIfAbsent(col, () => value);
     }
@@ -526,5 +614,35 @@ class _SettingViewState extends State<SettingView> {
     loadTablesNames();
     loadAppColumns();
     loadJoinsColumns();
+  }
+
+  void applyJoinSources(List<String?> value) {
+    setState(() {
+      widget.dataLoading = true;
+    });
+
+    WebAPIService().applyJoinSources(value).then((_) {
+      showDialog(
+          context: context,
+          builder: (context) {
+            return const AlertDialog(
+                content: SelectableText(
+                    "Operation initiated, please check Status form"));
+          });
+    }).catchError((error, stackTrace) {
+      log(error.toString(), error: error, stackTrace: stackTrace);
+
+      showDialog(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+                title: const Text("Error"),
+                content: SelectableText(error.toString()));
+          });
+    }).whenComplete(() {
+      setState(() {
+        widget.dataLoading = false;
+      });
+    });
   }
 }

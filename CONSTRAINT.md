@@ -2,13 +2,13 @@
 
 - Format des fichiers supporté : csv
 
-- Delimiter par defaut : ","
+- Delimiter supportés : ",;|:"
 
-- Prise en compte de la ligne header ignorée par defaut
+- Prise en compte de la ligne header : Au choix
 
-- application configurable depuis : ./config/application.properties
+- Fichier de configuration : ./config/application.properties
 
-- Compatibilité et test : Spark_3.2.1 | spark-3.2.1-bin-hadoop3.2.4
+- Compatibilité et test : Spark_3.2.1 | spark-3.2.1-bin-hadoop3.2.4 | mysql 8.0.30
 
 - Status file : 
     * PREPARING : Preparation pour l'importation
@@ -30,3 +30,9 @@
     * Nouvelles données creees si base vide
     * Sinon Jointure si colonnes definies
     * Sinon ajouts
+
+- Installation base de donnee :
+    database : bigdatadb (auto created if not exist)
+    user : bigdatauser/bigdatauser
+    permission : all on bigdatadb.* localhost
+

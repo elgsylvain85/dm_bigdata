@@ -57,17 +57,17 @@ public class WebAPIController {
         }
     }
 
-    // @GetMapping(value = "/filestoimport")
-    // public ResponseEntity<?> filesToImport() {
+    @GetMapping(value = "/filestoimport")
+    public ResponseEntity<?> filesToImport() {
 
-    //     try {
-    //         var data = this.sparkService.filesToImportAsPath();
-    //         return ResponseEntity.ok(data);
-    //     } catch (Exception ex) {
-    //         LOGGER.log(Level.SEVERE, ex.getMessage(), ex);
-    //         return ResponseEntity.badRequest().body(ex.getMessage());
-    //     }
-    // }
+        try {
+            var data = this.sparkService.filesToImportAsPath();
+            return ResponseEntity.ok(data);
+        } catch (Exception ex) {
+            LOGGER.log(Level.SEVERE, ex.getMessage(), ex);
+            return ResponseEntity.badRequest().body(ex.getMessage());
+        }
+    }
 
     @GetMapping(value = "/appcolumns")
     public ResponseEntity<?> appColumns() {
@@ -136,8 +136,8 @@ public class WebAPIController {
     @PostMapping(value = "/importfile")
     public ResponseEntity<?> importFile(@RequestParam String filePath, @RequestParam(required = false) String source,
             @RequestParam String columnsMapping, @RequestParam(required = false, defaultValue = ",") String delimiter,
-            @RequestParam(required = false, defaultValue = "false") Boolean excludeHeader,
-            @RequestParam(required = false) String joinColumns) {
+            @RequestParam(required = false, defaultValue = "false") Boolean excludeHeader
+            ) {
         try {
 
             Map<String, String> structure = this.jsonMapper.readValue(columnsMapping, Map.class);
@@ -147,21 +147,59 @@ public class WebAPIController {
             new Thread(() -> {
                 try {
 
-                    List<String> joinColumnsAsList = null;
+                   
 
-                    if (joinColumns != null) {
-
-                        joinColumnsAsList = Arrays.asList(this.jsonMapper.readValue(joinColumns, String[].class));
-
-                    } else {
-                        //TODO : Remove this bloc when frontend start to send joinColumn from import form
-                        joinColumnsAsList = this.appColumnService.joins();
-                    }
-
-                    this.sparkService.prepareImportFile(filePath, source, structure, delimiter, excludeHeader,
-                            joinColumnsAsList);
+                    this.sparkService.prepareImportFile(filePath, source, structure, delimiter, excludeHeader
+                            );
                 } catch (Exception ex) {
                     LOGGER.log(Level.SEVERE, "Job import Error", ex);
+                }
+            }).start();
+
+            return ResponseEntity.ok().build();
+        } catch (Exception ex) {
+            LOGGER.log(Level.SEVERE, ex.getMessage(), ex);
+            return ResponseEntity.badRequest().body(ex.getMessage());
+        }
+    }
+
+    @PostMapping(value = "/applyjoinsources")
+    public ResponseEntity<?> applyJoinSources(@RequestParam(required = false) String sources) {
+        try {
+
+            
+
+           
+
+            /* apply join as independent job (thread) */
+
+            new Thread(() -> {
+                try {
+
+                    List<String> sourcesToApply = null;
+
+                    if (sources != null) {
+
+                        sourcesToApply = Arrays.asList(this.jsonMapper.readValue(sources, String[].class));
+
+                    } else {
+
+                        /* if source is null then get all sources */
+
+                        sourcesToApply =  this.sparkService.tablesImported().stream().map(
+                            new Function<TableImported, String>() {
+        
+                                @Override
+                                public String apply(TableImported t) {
+                                    return t.getTableName();
+                                }
+        
+                            }).collect(Collectors.toList());
+                    }
+
+                    this.sparkService.prepareJoinSources(sourcesToApply);
+                } catch (Exception ex) {
+                    LOGGER.log(Level.SEVERE, "Job join Error", ex);
                 }
             }).start();
 
@@ -219,7 +257,7 @@ public class WebAPIController {
     @PostMapping(value = "/droptable")
     public ResponseEntity<?> removeFile(@RequestParam(required = false) String tableName) {
         try {
-            this.sparkService.dropTable(tableName);
+            this.sparkService.dropTableIfExists(tableName);
             return ResponseEntity.ok().build();
         } catch (Exception ex) {
             LOGGER.log(Level.SEVERE, ex.getMessage(), ex);
@@ -274,7 +312,7 @@ public class WebAPIController {
 
         try {
 
-            var data = this.sparkService.tablesStatus();
+            var data = this.sparkService.tableStates();
 
             return ResponseEntity.ok(data);
         } catch (Exception ex) {
@@ -304,7 +342,7 @@ public class WebAPIController {
     public ResponseEntity<?> uploadFile(@RequestParam MultipartFile media) {
         try {
 
-            var path = this.sparkService.uploadFile(media.getBytes(), media.getOriginalFilename());
+            var path = this.sparkService.uploadFile(media.getInputStream(), media.getOriginalFilename());
 
             return ResponseEntity.ok(path);
         } catch (Exception ex) {

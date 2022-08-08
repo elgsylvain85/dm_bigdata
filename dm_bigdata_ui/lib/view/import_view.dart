@@ -2,7 +2,7 @@ import 'dart:developer';
 
 import 'package:dm_bigdata_ui/model/service/web_api.dart';
 import 'package:dm_bigdata_ui/utility/utilities.dart';
-import 'package:file_picker/file_picker.dart';
+// import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 class ImportView extends StatefulWidget {
@@ -17,7 +17,7 @@ class ImportView extends StatefulWidget {
   var delimiter = ImportView.delimitersList.first;
   var excludeHeader = false;
   String? importPath;
-  String? fileChosenName;
+  // String? fileChosenName;
   Map<String, dynamic>? filePreviewData;
 
   var columnsMap = <String?>[];
@@ -27,6 +27,7 @@ class ImportView extends StatefulWidget {
   var dataLoading = false;
   var sourcesList = <String>[];
   var columnsList = <String>[];
+  var filesToImportList = <String>[];
 
   @override
   State<StatefulWidget> createState() => _ImportViewState();
@@ -46,6 +47,29 @@ class _ImportViewState extends State<ImportView> {
   @override
   Widget build(BuildContext context) {
     dynamic item;
+
+    /* files to import list */
+
+    var fileToImportItems = <DropdownMenuItem<String?>>[];
+
+    item = const DropdownMenuItem<String?>(
+      value: null,
+      child: Text("Choose file to import"),
+    );
+
+    fileToImportItems.add(item);
+
+    for (var e in widget.filesToImportList) {
+      var filename = e.split("/").last;
+      filename = filename.split("\\").last;
+
+      item = DropdownMenuItem<String?>(
+        value: e,
+        child: Text(filename),
+      );
+
+      fileToImportItems.add(item);
+    }
 
     /* sources Items */
 
@@ -121,63 +145,86 @@ class _ImportViewState extends State<ImportView> {
                   key: widget._importFormKey,
                   child: Column(
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          ElevatedButton(
-                              onPressed: () async {
-                                var filePickerResult = await FilePicker.platform
-                                    .pickFiles(withReadStream: true);
+                      // Row(
+                      //   mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      //   children: [
+                      //     ElevatedButton(
+                      //         onPressed: () async {
+                      //           var filePickerResult = await FilePicker.platform
+                      //               .pickFiles(withReadStream: true);
 
-                                if (filePickerResult != null) {
-                                  /* star load file to server */
-                                  var file = filePickerResult.files.single;
+                      //           if (filePickerResult != null) {
+                      //             /* star load file to server */
+                      //             var file = filePickerResult.files.single;
 
-                                  setState(() {
-                                    widget.dataLoading = true;
-                                  });
+                      //             setState(() {
+                      //               widget.dataLoading = true;
+                      //             });
 
-                                  widget._webAPIService.uploadFile(file,
-                                      onProgress: ((sentBytes, totalBytes) {
-                                    var progress =
-                                        (sentBytes * 100) ~/ totalBytes;
+                      //             widget._webAPIService.uploadFile(file,
+                      //                 onProgress: ((progress) {
+                      //               // var progress =
+                      //               //     (sentBytes * 100) ~/ totalBytes;
 
-                                    setState(() {
-                                      widget.fileChosenName = "$progress %";
-                                    });
-                                  })).then((value) {
-                                    // setState(() {
-                                    widget.newSource = file.name;
-                                    widget.fileChosenName = file.name;
-                                    widget.importPath = value;
-                                    // });
-                                  }).catchError((error, stackTrace) {
-                                    var errorMsg = "${error?.toString()}";
+                      //               setState(() {
+                      //                 widget.fileChosenName =
+                      //                     "${(progress * 100).round()} %";
+                      //               });
+                      //             })).then((value) {
+                      //               // setState(() {
+                      //               widget.newSource = file.name;
+                      //               widget.fileChosenName = file.name;
+                      //               widget.importPath = value;
+                      //               // });
+                      //             }).catchError((error, stackTrace) {
+                      //               var errorMsg = "${error?.toString()}";
 
-                                    widget.fileChosenName = null;
+                      //               widget.fileChosenName = null;
 
-                                    log(errorMsg, stackTrace: stackTrace);
+                      //               log(errorMsg, stackTrace: stackTrace);
 
-                                    widget.importPath = null;
+                      //               widget.importPath = null;
 
-                                    showDialog(
-                                        context: context,
-                                        builder: (context) {
-                                          return AlertDialog(
-                                              title: const Text("Error"),
-                                              content:
-                                                  SelectableText(errorMsg));
-                                        });
-                                  }).whenComplete(() {
-                                    setState(() {
-                                      widget.dataLoading = false;
-                                    });
-                                  });
-                                }
-                              },
-                              child: const Text("File name")),
-                          Text(widget.fileChosenName ?? "No file chosen")
-                        ],
+                      //               showDialog(
+                      //                   context: context,
+                      //                   builder: (context) {
+                      //                     return AlertDialog(
+                      //                         title: const Text("Error"),
+                      //                         content:
+                      //                             SelectableText(errorMsg));
+                      //                   });
+                      //             }).whenComplete(() {
+                      //               setState(() {
+                      //                 widget.dataLoading = false;
+                      //               });
+                      //             });
+                      //           }
+                      //         },
+                      //         child: const Text("File name")),
+                      //     Text(widget.fileChosenName ?? "No file chosen")
+                      //   ],
+                      // ),
+                      DropdownButtonFormField<String?>(
+                        key: GlobalKey(),
+                        value: widget.importPath,
+                        decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                            labelText: "File name"),
+                        items: fileToImportItems,
+                        onChanged: (value) {
+                          setState(() {
+                            // widget.fileChosenName = value;
+                            widget.importPath = value;
+
+                            var filename = value?.split("/").last;
+                            filename = filename?.split("\\").last;
+
+                            widget.newSource = filename;
+                          });
+                        },
+                        onSaved: (value) {
+                          widget.importPath = value;
+                        },
                       ),
                       Padding(
                         padding: const EdgeInsets.symmetric(
@@ -331,6 +378,23 @@ class _ImportViewState extends State<ImportView> {
     });
   }
 
+  void loadFilesToImport() {
+    setState(() {
+      widget.dataLoading = true;
+    });
+    widget._webAPIService.filesToImport().then((value) {
+      widget.filesToImportList.clear();
+      widget.filesToImportList.addAll(value);
+    }).catchError((error, stackTrace) {
+      log("${error?.toString()}", error: error, stackTrace: stackTrace);
+      widget.filesToImportList.clear();
+    }).whenComplete(() {
+      setState(() {
+        widget.dataLoading = false;
+      });
+    });
+  }
+
   void loadColumns() {
     setState(() {
       widget.dataLoading = true;
@@ -365,10 +429,14 @@ class _ImportViewState extends State<ImportView> {
       widget.newColumnsNames.clear();
 
       for (int i = 0; i < structure.length; i++) {
-        var e = i < widget.columnsList.length ? widget.columnsList[i] : null;
+        /* set default value in columns mapping */
 
-        widget.columnsMap.add(e);
-        widget.newColumnsNames.add(e ?? "");
+        // var e = i < widget.columnsList.length ? widget.columnsList[i] : null;
+        // widget.columnsMap.add(e);
+        // widget.newColumnsNames.add(e ?? "");
+
+        widget.columnsMap.add(null);
+        widget.newColumnsNames.add("");
       }
 
       // setState(() {
@@ -390,7 +458,7 @@ class _ImportViewState extends State<ImportView> {
     widget.excludeHeader = false;
     widget.importPath = null;
     widget.filePreviewData = null;
-    widget.fileChosenName = null;
+    // widget.fileChosenName = null;
 
     widget.columnsMap.clear();
     widget.newColumnsNames.clear();
@@ -400,6 +468,7 @@ class _ImportViewState extends State<ImportView> {
 
     loadSources();
     loadColumns();
+    loadFilesToImport();
   }
 
   void runFileImportation() async {

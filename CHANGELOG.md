@@ -88,3 +88,7 @@
 
 - Inclure driver-memory dans ./config/applications.properties
 
+## 0.6.5 :
+
+- Approche JDBC
+

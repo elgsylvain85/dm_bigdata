@@ -10,6 +10,8 @@ import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -38,7 +40,9 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
+import com.dm.bigdata.model.dao.AppInfoDao;
 import com.dm.bigdata.model.dao.TableImportedDao;
+import com.dm.bigdata.model.pojo.AppInfo;
 import com.dm.bigdata.model.pojo.TableImported;
 
 import scala.Function1;
@@ -56,6 +60,7 @@ public class SparkService {
     private static final String FILE_STRUCTURE_KEY = "fileStructure";
     private static final String FILE_PREVIEW_KEY = "filePreview";
     static final String JOIN_TABLE_NAME = "joindata";
+    static final int VARCHAR_COLUMN_SIZE = 255 * 100;
 
     public static class JoinFunction implements MapFunction<Row, Row> {
 
@@ -128,8 +133,8 @@ public class SparkService {
     @Autowired
     transient SparkSession sparkSession;
 
-    @Autowired
-    transient FileSystem hadoopFileSystem;
+    // @Autowired
+    // transient FileSystem hadoopFileSystem;
 
     @Autowired
     transient AppColumnService appColumnService;
@@ -146,6 +151,19 @@ public class SparkService {
     @Value("${app.spark-join-partitions}")
     transient String appSparkJoinPartitions;
 
+    @Value("${spring.datasource.url}")
+    transient String springDatasourceUrl;
+    @Value("${spring.datasource.username}")
+    transient String springDatasourceUsername;
+    @Value("${spring.datasource.password}")
+    transient String springDatasourcePassword;
+
+    @Autowired
+    transient Connection jdbc;
+
+    @Autowired
+    transient AppInfoDao appInfoDao;
+
     public Map<String, Object> dataAsMap(
             int offset,
             int limit,
@@ -154,39 +172,20 @@ public class SparkService {
 
         Map<String, Object> result = new HashMap<String, Object>();
 
-        var tablesNames = this.localTablesNames();
+        var columns = this.appColumnService.columnsWithSource().toArray(String[]::new);
 
-        if (tablesNames.length > 0) {
+        var joinColumns = this.appColumnService.joins().toArray(String[]::new);
 
-            var fullTableName = SPARK_DATABASE + "." + SparkService.JOIN_TABLE_NAME;
-            Dataset<Row> ds = this.sparkSession.sqlContext().table(fullTableName);
-            var columnsAsString = this.appColumnService.columnsWithSource();
+        Dataset<Row> ds = this.queryBySQL(new String[] { SparkService.JOIN_TABLE_NAME }, columns, joinColumns, limit,
+                filterExpression);
 
-            var columns = columnsAsString.stream().map(new Function<String, Column>() {
+        // ds = ds.selectExpr(columns);
 
-                @Override
-                public Column apply(String t) {
-                    return new Column(t);
-                }
+        var data = ds.toJSON().collectAsList();
 
-            }).toArray(Column[]::new);
-
-            ds = ds.select(columns);
-
-            if (filterExpression != null) {
-                ds = ds.where(filterExpression);
-            }
-
-            // var totalCount = ds.count();
-
-            var data = ds.limit(limit).toJSON().collectAsList();
-
-            result.put(SparkService.FILE_STRUCTURE_KEY, columnsAsString);
-            result.put(SparkService.DATA_KEY, data);
-            // result.put(SparkService.TOTAL_COUNT_KEY, totalCount);
-            result.put(SparkService.TOTAL_COUNT_KEY, "-");
-
-        }
+        result.put(SparkService.FILE_STRUCTURE_KEY, columns);
+        result.put(SparkService.DATA_KEY, data);
+        result.put(SparkService.TOTAL_COUNT_KEY, "-");
 
         return result;
     }
@@ -200,54 +199,33 @@ public class SparkService {
 
         try {
 
-            var exportFolder = new File(this.appWorkDir + "/export");
+            var exportFolder = new File(this.appWorkDir + File.separatorChar + "temp" + File.separatorChar + "export");
 
             /* if exportFolder not exist then create that */
 
             if (!exportFolder.exists()) {
-                exportFolder.mkdir();
+                exportFolder.mkdirs();
             }
 
             SparkService.dataStatus.put(fileName,
                     new String[] { fileName, "-", "EXPORTING", });
 
-            var tablesNames = this.localTablesNames();
+            var columns = this.appColumnService.columnsWithSource().toArray(String[]::new);
 
-            if (tablesNames.length > 0) {
+            var joinColumns = this.appColumnService.joins().toArray(String[]::new);
 
-                var fullTableName = SPARK_DATABASE + "." + SparkService.JOIN_TABLE_NAME;
-                Dataset<Row> ds = this.sparkSession.sqlContext().table(fullTableName);
-                var columnsAsString = this.appColumnService.columnsWithSource();
+            Dataset<Row> ds = this.queryBySQL(new String[] { SparkService.JOIN_TABLE_NAME }, columns, joinColumns,
+                    -1,
+                    filterExpression);
 
-                var columns = columnsAsString.stream().map(new Function<String, Column>() {
+            // var totalCount = ds.count();
 
-                    @Override
-                    public Column apply(String t) {
-                        return new Column(t);
-                    }
+            var path = exportFolder.getAbsolutePath() + File.separator + fileName;
 
-                }).toArray(Column[]::new);
+            ds.coalesce(1).write().option("header", true).csv(path);
 
-                ds = ds.select(columns);
-
-                if (filterExpression != null) {
-                    ds = ds.where(filterExpression);
-                }
-
-                // var totalCount = ds.count();
-
-                var path = exportFolder.getAbsolutePath() + File.separator + fileName;
-
-                ds.coalesce(1).write().option("header", true).csv(path);
-
-                // SparkService.dataStatus.put(fileName,
-                // new String[] { fileName, String.valueOf(totalCount), "EXPORTED", });
-                SparkService.dataStatus.put(fileName,
-                        new String[] { fileName, "-", "EXPORTED", });
-
-            } else {
-                throw new Exception("Error export : No tables already imported");
-            }
+            SparkService.dataStatus.put(fileName,
+                    new String[] { fileName, "-", "EXPORTED", });
 
         } catch (Exception ex) {
 
@@ -260,25 +238,35 @@ public class SparkService {
         }
     }
 
-    public String[] localTablesNames() {
+    public String[] allSources() {
 
-        return this.sparkSession.sqlContext().tableNames(SPARK_DATABASE);
+        var tablesImported = this.tableImportedDao.findAll().stream().map((e) -> e.getTableName())
+                .collect(Collectors.toList());
+
+        return tablesImported.toArray(String[]::new);
     }
 
     private synchronized static void processImportFile(SparkService instance, String path, String sourceName,
             Map<String, String> columnsMapping,
             String delimiter,
-            boolean excludeHeader, List<String> joinColumns) throws Exception {
+            boolean excludeHeader) throws Exception {
 
         SparkService.dataStatus.put(sourceName,
                 new String[] { sourceName, "-", "PREPARING", });
+
+                var fileSize = Paths.get(path).toFile().length();
+                var partition = (int)(fileSize / 200000000);//200 Mb per partition
+
+                if(partition < 1){
+                    partition = 1;
+                }
 
         var dataFrameReader = instance.sparkSession.read();
 
         /* Import data */
 
         var dataImport = dataFrameReader.option("delimiter", delimiter)
-                .option("header", excludeHeader).csv(instance.hadoopNameNode + path);
+                .option("header", excludeHeader).csv(path);
 
         /*
          * number each temp file column name to avoid confusion between real and
@@ -366,108 +354,70 @@ public class SparkService {
 
         dataImport = dataImport.groupBy(columns).df();
 
-        var dataImportCount = dataImport.count();
+        // var dataImportCount = dataImport.count();
 
         /* persist operation */
 
+        // SparkService.dataStatus.put(sourceName,
+        // new String[] { sourceName, String.valueOf(dataImportCount), "SAVING", });
         SparkService.dataStatus.put(sourceName,
-                new String[] { sourceName, String.valueOf(dataImportCount), "SAVING", });
-
-        // var joinColumnsAsList = instance.appColumnService.joins();
+                new String[] { sourceName, "-", "SAVING", });
 
         /*
-         * join only if preview data exist and join column is not empty else append or
+         * import only if preview data exist and else
          * save directly
          */
 
-        var dataJoinExist = Arrays.asList(instance.localTablesNames()).contains(SparkService.JOIN_TABLE_NAME);
+        var tableExist = Arrays.asList(instance.allSources()).contains(sourceName);
 
-        if (dataJoinExist) {
+        if (tableExist) {
 
-            if (joinColumns != null && !joinColumns.isEmpty()) {
+            // SparkService.dataStatus.put(sourceName,
+            // new String[] { sourceName, String.valueOf(dataImportCount), "APPENDING", });
+            SparkService.dataStatus.put(sourceName,
+                    new String[] { sourceName, "-", "APPENDING", });
 
-                /* join if join data already exists and joinColumns is not empty */
+            /* Append data imported with existant table */
 
-                /* save import data as table temp table before join */
+            dataImport.repartition(partition).write()
+                    .format("jdbc")
+                    .mode(SaveMode.Append)
+                    .option("overwriteSchema", "true")
+                    .option("url", instance.springDatasourceUrl)
+                    .option("dbtable", sourceName)// "dbo.Employees2"
+                    .option("user", instance.springDatasourceUsername)
+                    .option("password", instance.springDatasourcePassword)
+                    .save();
 
-                dataImport.createOrReplaceTempView(sourceName);
-                var tempTable = instance.sparkSession.sqlContext().table(sourceName).cache();
-
-                SparkService.dataStatus.put(sourceName,
-                        new String[] { sourceName, String.valueOf(dataImportCount),
-                                "JOINING ON " + joinColumns, });
-
-                /* apply join from existant data with temp table (from data imported) */
-
-                var dataJoinTableName = SPARK_DATABASE + "." + SparkService.JOIN_TABLE_NAME;
-                var dataJoin = instance.sparkSession.sqlContext().table(dataJoinTableName);
-
-                dataJoin = instance.joinWithMapProcess(dataJoin, tempTable, columns, joinColumns);
-
-                /* then overwrite result of jointure as base */
-
-                SparkService.dataStatus.put(sourceName,
-                        new String[] { sourceName, String.valueOf(dataImportCount),
-                                "JOIN APPENDING ON " + joinColumns, });
-
-                dataJoin.repartition(Integer.valueOf(instance.appSparkJoinPartitions)).write()
-                        .format("delta")
-                        .mode(SaveMode.Overwrite)
-                        .option("overwriteSchema", "true")
-                        .saveAsTable(SparkService.JOIN_TABLE_NAME);
-
-                /* free memory */
-                try {
-                    // dataJoin.unpersist(true);
-                    instance.sparkSession.catalog().uncacheTable(sourceName);
-                    instance.sparkSession.catalog().dropTempView(sourceName);
-                    // dataImport.unpersist(true);
-
-                } catch (Exception ex) {
-                    SparkService.LOGGER.log(Level.WARNING, "free memory after join failed", ex);
-                }
-
-            } else {
-
-                /* append if join data already exists and joinColumns is empty */
-
-                SparkService.dataStatus.put(sourceName,
-                        new String[] { sourceName, String.valueOf(dataImportCount), "APPENDING", });
-
-                /* write data imported directly as base */
-
-                dataImport.write()
-                        .format("delta")
-                        .mode(SaveMode.Append)
-                        .option("overwriteSchema", "true")
-                        .saveAsTable(SparkService.JOIN_TABLE_NAME);
-
-                dataImport.unpersist(true);
-            }
+            dataImport.unpersist(true);
 
         } else {
 
             /* overwriting data nothing exists */
 
+            // SparkService.dataStatus.put(sourceName,
+            // new String[] { sourceName, String.valueOf(dataImportCount), "OVERWRITING",
+            // });
             SparkService.dataStatus.put(sourceName,
-                    new String[] { sourceName, String.valueOf(dataImportCount), "OVERWRITING", });
+                    new String[] { sourceName, "-", "OVERWRITING", });
 
             /* write data imported directly as base */
 
-            dataImport.write()
-                    .format("delta")
+            dataImport.repartition(partition).write()
+                    .format("jdbc")
                     .mode(SaveMode.Overwrite)
                     .option("overwriteSchema", "true")
-                    .saveAsTable(SparkService.JOIN_TABLE_NAME);
+                    .option("url", instance.springDatasourceUrl)
+                    .option("dbtable", sourceName)// "dbo.Employees2"
+                    .option("user", instance.springDatasourceUsername)
+                    .option("password", instance.springDatasourcePassword)
+                    .save();
 
             dataImport.unpersist(true);
 
         }
 
-        // /* cache data */
-        // this.cacheFullData();
-
-        /* remove importing status */
+        /* remove importing state */
         SparkService.dataStatus.remove(sourceName);
 
         /* update file import log */
@@ -479,70 +429,187 @@ public class SparkService {
                 entity = new TableImported(sourceName);
             }
 
-            entity.setRowsCount(BigDecimal.valueOf(dataImportCount).add(entity.getRowsCount()));
+            var count = instance.tableCount(sourceName);
+
+            entity.setRowsCount(BigDecimal.valueOf(count).add(entity.getRowsCount()));
 
             instance.tableImportedDao.save(entity);
         } catch (Exception ex) {
             LOGGER.log(Level.WARNING, "Update file import log Error", ex);
         } finally {
-            /* delete tenmp file from hadoop */
 
-            var hadoopPath = new org.apache.hadoop.fs.Path(instance.hadoopNameNode + path);
+            /* delete temp file */
 
-            instance.hadoopFileSystem.delete(hadoopPath, true);
+            Paths.get(path).toFile().delete();
         }
 
     }
 
-    private Dataset<Row> joinWithMapProcess(Dataset<Row> dataJoin, Dataset<Row> dataImport, Column[] columns,
-            List<String> joinColumnsAsList) {
+    private synchronized static void processJoinSources(SparkService instance, List<String> sources) throws Exception {
 
-        /*
-         * align two dataframe to synchronized map
-         * function
-         */
+        SparkService.dataStatus.put(SparkService.JOIN_TABLE_NAME,
+                new String[] { SparkService.JOIN_TABLE_NAME, "-", "PREPARING", });
 
-        dataImport = dataImport.select(columns);
-        dataJoin = dataJoin.select(columns);
+        /* create empty join table */
 
-        var joinColumns = joinColumnsAsList.toArray(new String[] {});
+        var columns = new ArrayList<String>(Arrays.asList(AppColumnService.SOURCE_COLUMN));
+        columns.addAll(instance.appColumnService.columnsToUpperCase());
 
-        /* prepare join expr */
+        /* delete old join table */
 
-        Column colJoinExprs = null;
-        for (int j = 0; j < joinColumns.length; j++) {
+        // instance.truncateTable(SparkService.JOIN_TABLE_NAME);
+        instance.dropTableIfExists(SparkService.JOIN_TABLE_NAME);
 
-            var colName = joinColumns[j];
+        /* reset join info */
 
-            var colExpr = dataImport.col(colName).equalTo(dataJoin.col(colName));
+        var appInfo = instance.appInfoDao.findByAppInfo(SparkService.JOIN_TABLE_NAME);
 
-            if (j == 0) {
-                colJoinExprs = colExpr;
-            } else {
-                // use OR SQL expression
-                colJoinExprs = colJoinExprs.or(colExpr);
+        if (appInfo == null) {
+            appInfo = new AppInfo();
+
+            appInfo.setAppInfo(SparkService.JOIN_TABLE_NAME);
+        }
+
+        appInfo.setValue1("-");
+        appInfo.setValue2("-");
+
+        instance.appInfoDao.save(appInfo);
+
+        /* create new join table with current column */
+
+        instance.createTableIfNotExist(SparkService.JOIN_TABLE_NAME, columns);
+
+        var joinColumns = instance.appColumnService.joins();
+
+        /* prepare join query */
+
+        var query = instance.generateSQLSelect(sources.toArray(String[]::new), columns.toArray(String[]::new),
+                joinColumns.toArray(String[]::new), -1,
+                null);
+
+        query = "INSERT INTO " + SparkService.JOIN_TABLE_NAME + " " + query;
+
+        /* run joining query */
+
+        SparkService.dataStatus.put(SparkService.JOIN_TABLE_NAME,
+                new String[] { SparkService.JOIN_TABLE_NAME, "-", "JOINING " + sources.toString(), });
+
+        instance.jdbc.createStatement().execute(query);
+
+        /* remove operation status */
+        SparkService.dataStatus.remove(SparkService.JOIN_TABLE_NAME);
+
+        /* update join info */
+
+        var count = instance.tableCount(SparkService.JOIN_TABLE_NAME);
+
+        appInfo.setValue1(String.valueOf(count));
+        appInfo.setValue2(sources.toString());
+
+        instance.appInfoDao.save(appInfo);
+
+    }
+
+    private Dataset<Row> joinBySpark(String[] tablesNames, String[] columns,
+            String[] joinColumns) throws Exception {
+
+        Dataset<Row> table1 = null;
+        Dataset<Row> table2 = null;
+
+        if (tablesNames.length > 0) {
+
+            for (int i = 0; i < tablesNames.length; i++) {
+
+                if (i == 0) {
+
+                    table1 = this.sparkSession.read().format("jdbc").option("url", this.springDatasourceUrl)
+                            // .option("query", query)
+                            .option("dbtable", tablesNames[i])
+                            .option("user", this.springDatasourceUsername)
+                            .option("password", this.springDatasourcePassword)
+                            .load().selectExpr(columns);
+
+                } else {
+
+                    table2 = table1;
+
+                    table1 = this.sparkSession.read().format("jdbc").option("url", this.springDatasourceUrl)
+                            // .option("query", query)
+                            .option("dbtable", tablesNames[i])
+                            .option("user", this.springDatasourceUsername)
+                            .option("password", this.springDatasourcePassword)
+                            .load().selectExpr(columns);
+
+                    /* apply join */
+
+                    /* prepare join expr */
+
+                    Column colJoinExprs = null;
+                    for (int j = 0; j < joinColumns.length; j++) {
+
+                        var colName = joinColumns[j];
+
+                        var colExpr = table2.col(colName).equalTo(table1.col(colName));
+
+                        if (j == 0) {
+                            colJoinExprs = colExpr;
+                        } else {
+                            // use OR SQL expression
+                            colJoinExprs = colJoinExprs.or(colExpr);
+                        }
+                    }
+
+                    if (colJoinExprs != null) {
+                        table1 = table1.join(table2, colJoinExprs, "full");
+                    } else {
+                        table1 = table1.join(table2);
+                    }
+
+                    /* merge columns to avoid ambigues column */
+
+                    if (this.appSparkJoinPartitions != null & !this.appSparkJoinPartitions.isEmpty()) {
+                        table1 = table1.repartition(Integer.valueOf(this.appSparkJoinPartitions));
+                    }
+
+                    table1 = table1.map(new SparkService.JoinFunction(), table2.encoder()).selectExpr(columns);
+
+                }
+
             }
-        }
 
-        /* apply join */
+            return table1;
 
-        if (colJoinExprs != null) {
-            dataJoin = dataJoin.join(dataImport, colJoinExprs, "full");
         } else {
-            dataJoin = dataJoin.join(dataImport);
+            throw new Exception("No table available");
+        }
+    }
+
+    public void prepareJoinSources(List<String> sources) throws Exception {
+
+        try {
+
+            /* add informations according [TABLES_STATUS_HEADER] */
+
+            SparkService.dataStatus.put(JOIN_TABLE_NAME,
+                    new String[] { JOIN_TABLE_NAME, sources.toString(), "QUEUE", });
+
+            SparkService.processJoinSources(this, sources);
+
+        } catch (Exception ex) {
+
+            /* set error status */
+
+            SparkService.dataStatus.put(JOIN_TABLE_NAME,
+                    new String[] { JOIN_TABLE_NAME, ex.getMessage(), "JOIN ERROR", });
+
+            throw ex;
         }
 
-        /* merge columns to avoid ambigues column */
-
-        dataJoin = dataJoin.repartition(Integer.valueOf(this.appSparkJoinPartitions))
-                .map(new SparkService.JoinFunction(), dataImport.encoder()).select(columns);
-
-        return dataJoin;
     }
 
     public void prepareImportFile(String path, String sourceName, Map<String, String> columnsMapping,
             String delimiter,
-            boolean excludeHeader, List<String> joinColumns) throws Exception {
+            boolean excludeHeader) throws Exception {
 
         try {
 
@@ -557,8 +624,7 @@ public class SparkService {
             SparkService.dataStatus.put(sourceName,
                     new String[] { sourceName, "-", "QUEUE", });
 
-            SparkService.processImportFile(this, path, sourceName, columnsMapping, delimiter, excludeHeader,
-                    joinColumns);
+            SparkService.processImportFile(this, path, sourceName, columnsMapping, delimiter, excludeHeader);
 
         } catch (Exception ex) {
 
@@ -571,10 +637,19 @@ public class SparkService {
         }
     }
 
-    public void dropTable(String tableName) throws Exception {
+    public void truncateTable(String tableName) throws Exception {
+        if (tableName != null) {
+            this.jdbc.createStatement().execute("TRUNCATE TABLE " + tableName);
+
+        } else {
+            throw new Exception("table name is null");
+        }
+    }
+
+    public void dropTableIfExists(String tableName) throws Exception {
 
         if (tableName != null) {
-            this.sparkSession.sql("DROP TABLE IF EXISTS " + SparkService.SPARK_DATABASE + "." + tableName + ";");
+            this.jdbc.createStatement().execute("DROP TABLE IF EXISTS " + tableName);
 
             var entity = this.tableImportedDao.findByTableName(tableName);
 
@@ -585,11 +660,39 @@ public class SparkService {
         } else {
             /* clear all tables if [tableName] in parameters is null */
 
-            for (var e : this.localTablesNames()) {
-                this.dropTable(e);
+            for (var e : this.allSources()) {
+                this.dropTableIfExists(e);
             }
 
             this.tableImportedDao.deleteAll();
+        }
+
+    }
+
+    public void createTableIfNotExist(String tableName, List<String> columns) throws Exception {
+
+        if (tableName != null && columns != null && !columns.isEmpty()) {
+
+            var query = "CREATE TABLE IF NOT EXISTS " + tableName;
+
+            for (int i = 0; i < columns.size(); i++) {
+                if (i == 0) {
+                    query += " ( ";
+                }
+
+                query += columns.get(i) + " TEXT ";
+
+                if (i != columns.size() - 1) {
+                    query += " , ";
+                } else {
+                    query += " ) ";
+                }
+            }
+
+            this.jdbc.createStatement().execute(query);
+
+        } else {
+            throw new Exception("table name is null or columns size is null");
         }
 
     }
@@ -603,79 +706,24 @@ public class SparkService {
      * @return
      * @throws Exception
      */
-    private synchronized Dataset<Row> joinWithQueryProcess(String[] tablesNames, List<String> columns,
-            List<String> joinColumns)
+    private synchronized Dataset<Row> queryBySQL(String[] tablesNames, String[] columns,
+            String[] joinColumns, int limit, String filterExpression)
             throws Exception {
 
         if (tablesNames.length > 0) {
 
-            /* SELECT composition with columns (concatenation) */
-
-            var query = " SELECT ";
-            for (int i = 0; i < columns.size(); i++) {
-                var col = "";
-
-                if (tablesNames.length == 1) {
-                    /* get unique column */
-                    col = columns.get(i);
-                } else {
-                    /* Concatenate columns from many tables with system separator */
-                    col = " CONCAT_WS(\"" + SparkService.ITEM_SEPARATOR + "\", ";
-                    for (int j = 0; j < tablesNames.length; j++) {
-                        col += tablesNames[j] + "." + columns.get(i);
-
-                        if (j != tablesNames.length - 1) {
-                            col += " , ";
-                        }
-                    }
-                    col += " ) AS " + columns.get(i);
-                }
-
-                /* add column to select */
-
-                query += col;
-
-                if (i != columns.size() - 1) {
-                    query += " , ";
-                }
-            }
-
-            /* FROM and JOIN composition */
-
-            query += " FROM ";
-
-            for (int i = 0; i < tablesNames.length; i++) {
-                if (i == 0) {
-                    /* first tables just table without join */
-                    query += tablesNames[i];
-                } else {
-                    /* from second table then apply join */
-
-                    if (joinColumns.isEmpty()) {
-                        /* if no join columns has been indicated then apply natural join */
-                        query += " CROSS JOIN " + tablesNames[i];
-                    } else {
-                        /* apply full just with preview table on specified columns */
-                        query += " FULL JOIN " + tablesNames[i];
-
-                        for (int j = 0; j < joinColumns.size(); j++) {
-                            if (j == 0) {
-                                query += " ON ";
-                            } else {
-                                query += " OR ";
-                            }
-
-                            /* i-1 to indicate preview table */
-                            query += tablesNames[i - 1] + "." + joinColumns.get(j) + " == " + tablesNames[i] + "."
-                                    + joinColumns.get(j);
-                        }
-                    }
-                }
-            }
+            var query = this.generateSQLSelect(tablesNames, columns, joinColumns, limit, filterExpression);
 
             LOGGER.info(query);
 
-            var data = this.sparkSession.sqlContext().sql(query);
+            var data = this.sparkSession.read().format("jdbc").option("url", this.springDatasourceUrl)
+                    .option("query", query)
+                    // .option("dbtable", "("+query+") foo")
+                    .option("user", this.springDatasourceUsername).option("password", this.springDatasourcePassword)
+                    .load();
+
+            // var data = this.sparkSession.sqlContext().sql(query);
+            data = data.selectExpr(columns);
 
             return data;
 
@@ -683,6 +731,180 @@ public class SparkService {
             throw new Exception("No table available");
         }
 
+    }
+
+    private String generateSQLSelect(String[] tablesNames, String[] columns, String[] joinColumns, int limit,
+            String filterExpression) {
+        /* SELECT composition with columns (concatenation) */
+
+        var query = " SELECT ";
+        for (int i = 0; i < columns.length; i++) {
+            var col = "";
+
+            if (tablesNames.length == 1) {
+                /* get unique column */
+                col = columns[i];
+            } else {
+                /* Concatenate columns from many tables with system separator */
+                col = " CONCAT_WS(\"" + SparkService.ITEM_SEPARATOR + "\", ";
+                for (int j = 0; j < tablesNames.length; j++) {
+                    col += "t" + j + "." + columns[i];
+
+                    if (j != tablesNames.length - 1) {
+                        col += " , ";
+                    }
+                }
+                col += " ) AS " + columns[i];
+            }
+
+            /* add column to select */
+
+            query += col;
+
+            if (i != columns.length - 1) {
+                query += " , ";
+            }
+        }
+
+        /*
+         * FROM : Apply join if many tables
+         */
+
+        if (tablesNames.length == 1) {
+
+            /* Single table */
+
+            query += " FROM " + tablesNames[0];
+
+            if (filterExpression != null && !filterExpression.isEmpty()) {
+                query += " WHERE " + filterExpression;
+            }
+
+            if (limit > 0) {
+                query += " LIMIT " + limit;
+            }
+        } else {
+
+            /*
+             * JOIN composition : Simulate full join (left, right and union) if join columns
+             * exist else apply natural join
+             */
+
+            if (joinColumns.length == 0) {
+
+                /* Apply Natural Join */
+
+                query += " FROM ";
+
+                for (int i = 0; i < tablesNames.length; i++) {
+                    if (i == 0) {
+                        /* first tables just table without join */
+                        query += tablesNames[i];
+                    } else {
+                        /* from second table then apply join */
+
+                        query += " NATURAL JOIN " + tablesNames[i];
+
+                    }
+                }
+
+                if (filterExpression != null && !filterExpression.isEmpty()) {
+                    query += " WHERE " + filterExpression;
+                }
+
+                if (limit > 0) {
+                    query += " LIMIT " + limit;
+                }
+
+            } else {
+
+                /* Simulate Full Join : left, right and union */
+
+                /* First : Left Join */
+
+                var leftJoin = query + " FROM ";
+
+                for (int i = 0; i < tablesNames.length; i++) {
+                    if (i == 0) {
+                        /* first tables just table without join */
+                        leftJoin += tablesNames[i] + " t" + i;
+                    } else {
+                        /* from second table then apply join */
+
+                        /* apply full just with preview table on specified columns */
+                        leftJoin += " LEFT JOIN " + tablesNames[i] + " t" + i;
+                        ;
+
+                        for (int j = 0; j < joinColumns.length; j++) {
+                            if (j == 0) {
+                                leftJoin += " ON ";
+                            } else {
+                                leftJoin += " OR ";
+                            }
+
+                            /* i-1 to indicate preview table */
+                            leftJoin += "t" + (i - 1) + "." + joinColumns[j] + " = t" + i + "."
+                                    + joinColumns[j];
+                        }
+
+                    }
+                }
+
+                if (filterExpression != null && !filterExpression.isEmpty()) {
+                    leftJoin += " WHERE " + filterExpression;
+                }
+
+                if (limit > 0) {
+                    leftJoin += " LIMIT " + limit;
+                }
+
+                /* Second : Right Join */
+
+                var rightJoin = query + " FROM ";
+
+                for (int i = 0; i < tablesNames.length; i++) {
+                    if (i == 0) {
+                        /* first tables just table without join */
+                        rightJoin += tablesNames[i] + " t" + i;
+                        ;
+                    } else {
+                        /* from second table then apply join */
+
+                        /* apply full just with preview table on specified columns */
+                        rightJoin += " RIGHT JOIN " + tablesNames[i] + " t" + i;
+                        ;
+
+                        for (int j = 0; j < joinColumns.length; j++) {
+                            if (j == 0) {
+                                rightJoin += " ON ";
+                            } else {
+                                rightJoin += " OR ";
+                            }
+
+                            /* i-1 to indicate preview table */
+                            rightJoin += "t" + (i - 1) + "." + joinColumns[j] + " = t" + i + "."
+                                    + joinColumns[j];
+                        }
+
+                    }
+                }
+
+                if (filterExpression != null && !filterExpression.isEmpty()) {
+                    rightJoin += " WHERE " + filterExpression;
+                }
+
+                if (limit > 0) {
+                    rightJoin += " LIMIT " + limit;
+                }
+
+                /* Then apply union to simulate full join */
+
+                query = "(" + leftJoin + ") UNION (" + rightJoin + ")";
+
+            }
+        }
+
+        return query;
     }
 
     /**
@@ -697,7 +919,7 @@ public class SparkService {
             throws Exception {
         var df = this.sparkSession.read()
                 .option("delimiter", delimiter).option("header", excludeHeader)
-                .csv(this.hadoopNameNode + filePath);
+                .csv(filePath);
 
         Map<String, Object> result = new HashMap<String, Object>();
 
@@ -723,23 +945,23 @@ public class SparkService {
         newColumnName = newColumnName.replaceAll("[^a-zA-Z0-9]", "");// remove all special char
         newColumnName = newColumnName.toUpperCase();
 
-        for (var tableName : this.localTablesNames()) {
+        List<String> tables = new ArrayList<String>(Arrays.asList(SparkService.JOIN_TABLE_NAME));
+        tables.addAll(Arrays.asList(this.allSources()));
 
-            var fullTableName = SPARK_DATABASE + "." + tableName;
-
-            var df = this.sparkSession.sqlContext().table(fullTableName);
+        for (var tableName : tables) {
 
             /* if table containt old column then rename */
 
-            if (Arrays.asList(df.columns()).contains(oldColumnName)) {
-                this.sparkSession.sqlContext().sql(
-                        "ALTER TABLE " + fullTableName + " RENAME COLUMN " + oldColumnName + " TO " + newColumnName);
+            if (this.columnsByTable(tableName).contains(oldColumnName)) {
+
+                this.jdbc.createStatement().execute(
+                        "ALTER TABLE " + tableName + " RENAME COLUMN " + oldColumnName + " TO " + newColumnName);
 
             } else {
                 /* else add new column to table with empty value */
 
-                this.sparkSession.sqlContext().sql(
-                        "ALTER TABLE " + fullTableName + " ADD COLUMNS (" + newColumnName + " STRING)");
+                this.jdbc.createStatement().execute(
+                        "ALTER TABLE " + tableName + " ADD COLUMN " + newColumnName + " TEXT");
             }
 
         }
@@ -758,18 +980,16 @@ public class SparkService {
     public void deleteColumnByName(String columnName) throws Exception {
 
         columnName = columnName.toUpperCase();
+        List<String> tables = new ArrayList<String>(Arrays.asList(SparkService.JOIN_TABLE_NAME));
+        tables.addAll(Arrays.asList(this.allSources()));
 
-        for (var tableName : this.localTablesNames()) {
-
-            var fullTableName = SPARK_DATABASE + "." + tableName;
-
-            var df = this.sparkSession.sqlContext().table(fullTableName);
+        for (var tableName : tables) {
 
             /* if table containt column then remove */
 
-            if (Arrays.asList(df.columns()).contains(columnName)) {
-                this.sparkSession.sqlContext().sql(
-                        "ALTER TABLE " + fullTableName + " DROP COLUMN " + columnName);
+            if (this.columnsByTable(tableName).contains(columnName)) {
+                this.jdbc.createStatement().execute(
+                        "ALTER TABLE " + tableName + " DROP COLUMN " + columnName);
 
             }
         }
@@ -778,111 +998,125 @@ public class SparkService {
 
     }
 
-    public List<String[]> tablesStatus() {
+    public List<String[]> tableStates() {
         var result = new ArrayList<String[]>();
 
-        /* all importing tables */
+        /* import states */
 
         for (var k : SparkService.dataStatus.keySet()) {
             result.add(SparkService.dataStatus.get(k));
         }
 
-        /* tables imported log */
+        // /* existants tables states */
 
-        for (var e : this.tableImportedDao.findAll()) {
+        // List<String> tables = new
+        // ArrayList<String>(Arrays.asList(SparkService.JOIN_TABLE_NAME));
+        // tables.addAll(Arrays.asList(this.allSources()));
+
+        // for (var e : tables) {
+
+        // var count = this.tableCount(e);
+
+        // result.add(new String[] { e,
+        // String.valueOf(count), "DONE", });
+
+        // }
+
+        /* tables imported states */
+
+        var tablesImported = this.tableImportedDao.findAll();
+
+        for (var e : tablesImported) {
+
+            var count = e.getRowsCount().longValue();
 
             result.add(new String[] { e.getTableName(),
-                    String.valueOf(e.getRowsCount().longValue()), "DONE", });
+                    String.valueOf(count), "DONE", });
 
         }
 
-        // /* all existants tables */
+        /* join table state */
 
-        // for (var tableName : this.localTablesNames()) {
+        var appInfo = this.appInfoDao.findByAppInfo(SparkService.JOIN_TABLE_NAME);
 
-        // var fullTableName = SPARK_DATABASE + "." + tableName;
-
-        // var df = this.sparkSession.sqlContext().table(fullTableName);
-
-        // var count = df.count();
-
-        // /* add informations according [TABLES_STATUS_HEADER] */
-
-        // result.add(new String[] { tableName, String.valueOf(count), "DONE", });
-
-        // }
-        /* Join current information */
-
-        var fullTableName = SPARK_DATABASE + "." + JOIN_TABLE_NAME;
-
-        var joinTableExist = this.sparkSession.catalog().tableExists(fullTableName);
-
-        long count = 0;
-
-        if (joinTableExist) {
-            var df = this.sparkSession.sqlContext().table(fullTableName);
-
-            count = df.count();
-
-            result.add(new String[] { JOIN_TABLE_NAME, String.valueOf(count), "READY", });
+        if (appInfo != null) {
+            result.add(new String[] { SparkService.JOIN_TABLE_NAME,
+                    appInfo.getValue1(), appInfo.getValue2(), });
         } else {
-
-            result.add(new String[] { JOIN_TABLE_NAME, String.valueOf(count), "EMPTY", });
+            result.add(new String[] { SparkService.JOIN_TABLE_NAME,
+                    "-", "EMPTY", });
         }
 
         return result;
     }
 
-    // public File[] filesToImport() {
+    public long tableCount(String tableName) {
+        long result = 0L;
 
-    // var wf = new File(this.appWorkDir);
+        try {
+            var rs = this.jdbc.createStatement().executeQuery("SELECT count(*) FROM " + tableName);
 
-    // /* file worker folder not exist then create that */
+            if (rs.next()) {
+                result = rs.getInt(1);
+            }
 
-    // if (!wf.exists()) {
-    // wf.mkdir();
-    // }
+            return result;
+        } catch (Exception ex) {
+            LOGGER.log(Level.WARNING, ex.getMessage(), ex);
+        }
 
-    // /* add files to exclude */
+        return result;
 
-    // var exclused = new ArrayList<File>();
+    }
 
-    // // exclude hide and system files
+    public File[] filesToImport() {
 
-    // exclused.addAll(
-    // Arrays.asList(
-    // wf.listFiles(
-    // new FileFilter() {
+        var tempFolder = Paths.get(this.appWorkDir + File.separatorChar + "temp" + File.separatorChar + "import");
 
-    // public boolean accept(File file) {
+        if (!tempFolder.toFile().exists()) {
+            tempFolder.toFile().mkdirs();
+        }
 
-    // return file.isHidden();
-    // }
-    // })));
+        /* add files to exclude */
 
-    // /* apply exclude filter on working folder */
+        var exclused = new ArrayList<File>();
 
-    // var result =
+        // exclude hide and system files and directory
 
-    // wf.listFiles(new FileFilter() {
+        exclused.addAll(
+                Arrays.asList(
+                        tempFolder.toFile().listFiles(
+                                new FileFilter() {
 
-    // public boolean accept(File file) {
-    // return !exclused.contains(file);
-    // }
-    // });
+                                    public boolean accept(File file) {
 
-    // return result;
-    // }
+                                        return file.isHidden() || file.isDirectory();
+                                    }
+                                })));
 
-    // public List<String> filesToImportAsPath() {
-    // var result = new ArrayList<String>();
+        /* apply exclude filter on working folder */
 
-    // for (var f : this.filesToImport()) {
-    // result.add(f.getAbsolutePath());
-    // }
+        var result =
 
-    // return result;
-    // }
+                tempFolder.toFile().listFiles(new FileFilter() {
+
+                    public boolean accept(File file) {
+                        return !exclused.contains(file);
+                    }
+                });
+
+        return result;
+    }
+
+    public List<String> filesToImportAsPath() {
+        var result = new ArrayList<String>();
+
+        for (var f : this.filesToImport()) {
+            result.add(f.getAbsolutePath());
+        }
+
+        return result;
+    }
 
     public void updateJoin(String columnName, Boolean value) throws Exception {
         this.appColumnService.updateJoin(columnName, value);
@@ -893,64 +1127,114 @@ public class SparkService {
         return this.tableImportedDao.findAll();
     }
 
-    public String uploadFile(byte[] inputStream, String name) throws IOException {
+    public List<String> columnsByTable(String tableName) throws SQLException {
+
+        var result = new ArrayList<String>();
+
+        try {
+            var stm = this.jdbc.createStatement();
+            stm.setMaxRows(1);
+            var rs = stm.executeQuery("SELECT * FROM " + tableName);
+
+            var rsMeta = rs.getMetaData();
+
+            for (int i = 1; i <= rsMeta.getColumnCount(); i++) {
+                result.add(rsMeta.getColumnName(i));
+            }
+        } catch (Exception ex) {
+            LOGGER.log(Level.WARNING, ex.getMessage(), ex);
+        }
+
+        return result;
+
+    }
+
+    public String uploadFile(InputStream inputStream, String name) throws IOException {
 
         /* write input stream in local system as temp file */
 
-        var tempFile = Files.createTempFile(name, null);
+        var tempFolder = Paths.get(this.appWorkDir + File.separatorChar + "temp" + File.separatorChar + "import");
 
-        var outputStream = new FileOutputStream(tempFile.toFile());
-
-        outputStream.write(inputStream);
-        outputStream.close();
-
-        /* check and/or create import dir in hadoop */
-
-        var importDirPath = new org.apache.hadoop.fs.Path(this.appWorkDir + "/import");
-
-        var exist = this.hadoopFileSystem.exists(importDirPath);
-
-        if (!exist) {
-            this.hadoopFileSystem.mkdirs(importDirPath);
+        if (!tempFolder.toFile().exists()) {
+            tempFolder.toFile().mkdirs();
         }
 
-        /* move temp file to hadoop */
+        var tempFile = new File(tempFolder.toString(), name);
 
-        var from = new org.apache.hadoop.fs.Path(tempFile.toString());
-        var to = new org.apache.hadoop.fs.Path(importDirPath.toString() + "/" + tempFile.toFile().getName());
+        var outputStream = new FileOutputStream(tempFile);
 
-        this.hadoopFileSystem.moveFromLocalFile(from, to);
+        byte[] tampon = new byte[10240000];
+        int eof = 0;
 
-        /* delete temp file from local system */
-        tempFile.toFile().delete();
+        while ((eof = inputStream.read(tampon, 0, tampon.length)) >= 0) {
+            outputStream.write(tampon, 0, eof);
+        }
 
-        /* return path of destination file in hadoop */
+        outputStream.close();
+        inputStream.close();
 
-        return to.toString();
+        // /* check and/or create import dir in hadoop */
+
+        // var importDirPath = new org.apache.hadoop.fs.Path(this.appWorkDir +
+        // "/import");
+
+        // var exist = this.hadoopFileSystem.exists(importDirPath);
+
+        // if (!exist) {
+        // this.hadoopFileSystem.mkdirs(importDirPath);
+        // }
+
+        // /* move temp file to hadoop */
+
+        // var from = new org.apache.hadoop.fs.Path(tempFile.toString());
+        // var to = new org.apache.hadoop.fs.Path(importDirPath.toString() + "/" +
+        // tempFile.toFile().getName());
+
+        // this.hadoopFileSystem.moveFromLocalFile(from, to);
+
+        // /* delete temp file from local system */
+        // tempFile.toFile().delete();
+
+        // /* return path of destination file in hadoop */
+
+        // return to.toString();
+
+        return tempFile.getAbsolutePath();
     }
 
-    // @EventListener(ApplicationReadyEvent.class)
-    // public void cacheFullData() {
+    @EventListener(ApplicationReadyEvent.class)
+    public void createTableJoinIfNotExist() {
 
-    // try {
+        try {
 
-    // var tablesNames = this.localTablesNames();
-    // var columns = this.appColumnService.columnsWithSource();
-    // var joinColumns = this.appColumnService.joins();
+            this.createTableIfNotExist(SparkService.JOIN_TABLE_NAME, Arrays.asList(AppColumnService.SOURCE_COLUMN));
 
-    // if (tablesNames.length > 0) {
+        } catch (Exception ex) {
 
-    // this.queryData(tablesNames, columns,
-    // joinColumns).cache();
+            LOGGER.log(Level.SEVERE, "Create table join failed", ex);
 
-    // } else {
-    // throw new Exception("No tables already imported");
-    // }
+        }
+    }
 
-    // } catch (Exception ex) {
+    public List<String> allTablesInDB() {
 
-    // LOGGER.log(Level.SEVERE, "Cache full data error", ex);
+        var resultat = new ArrayList<String>();
 
-    // }
-    // }
+        try {
+
+            var md = this.jdbc.getMetaData();
+            var rs = md.getTables(null, null, "%", null);
+            while (rs.next()) {
+                // System.out.println(rs.getString(3));
+                resultat.add(rs.getString(3));
+            }
+
+        } catch (Exception ex) {
+
+            LOGGER.log(Level.SEVERE, ex.getMessage(), ex);
+
+        }
+
+        return resultat;
+    }
 }

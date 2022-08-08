@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
+import 'dart:html';
 // import 'dart:io';
 
+import 'package:dm_bigdata_ui/utility/local_uploader.dart';
 import 'package:dm_bigdata_ui/utility/utilities.dart';
-import 'package:file_picker/src/platform_file.dart';
 import 'package:http/http.dart' as http;
 
 typedef void OnUploadProgressCallback(int sentBytes, int totalBytes);
@@ -226,6 +227,23 @@ class WebAPIService {
     }
   }
 
+  Future<void> applyJoinSources(List<String?> sources) async {
+    var url = Uri.parse("${Utilities.webAPI}/webapi/applyjoinsources");
+
+    var data = {
+      "sources": jsonEncode(sources),
+    };
+
+    var response = await http.post(url, body: data);
+
+    if (response.statusCode >= 200 && response.statusCode <= 299) {
+      log(response.body);
+      return;
+    } else {
+      throw Exception(response.body);
+    }
+  }
+
   Future<void> dropTable(String? tableName) async {
     var url = Uri.parse("${Utilities.webAPI}/webapi/droptable");
 
@@ -361,100 +379,93 @@ class WebAPIService {
     }
   }
 
-  Future<String> uploadFile(PlatformFile file,
-      {void Function(int, int)? onProgress}) async {
-    var url = Uri.parse("${Utilities.webAPI}/webapi/uploadfile");
+//   Future<String> uploadFile(PlatformFile file,
+//       {void Function(double)? onProgress}) async {
+//     var uri = "${Utilities.webAPI}/webapi/uploadfile";
+//     // var url = Uri.parse(uri);
 
-    var fileReadStream = file.readStream;
+//     var fileReadStream = file.readStream;
 
-    if (fileReadStream != null) {
-      // int byteCount = 0;
+//     if (fileReadStream != null) {
+//       //   var multipart = http.MultipartFile("media", fileReadStream, file.size,
+//       //       filename: file.name);
 
-      // var stream = http.ByteStream(file.readStream!);
+//       //   var requestMultipart =
+//       //       LocalMultipartRequest("POST", url, onProgress: onProgress);
 
-      // Stream<List<int>> streamUpload = fileReadStream.transform(
-      //   StreamTransformer.fromHandlers(
-      //     handleData: (data, sink) {
-      //       sink.add(data);
+//       //   requestMultipart.files.add(multipart);
 
-      //       byteCount += data.length;
+//       //   var httpResponse = await requestMultipart.send();
+//       //   var body = await httpResponse.stream.toBytes();
+//       //   var data = String.fromCharCodes(body);
 
-      //       if (onUploadProgress != null) {
-      //         onUploadProgress(byteCount, file.size);
-      //         // CALL STATUS CALLBACK;
-      //       }
-      //     },
-      //     handleError: (error, stack, sink) {
-      //       throw error;
-      //     },
-      //     handleDone: (sink) {
-      //       sink.close();
-      //       // UPLOAD DONE;
-      //     },
-      //   ),
-      // );
+//       //   if (httpResponse.statusCode ~/ 100 == 2) {
+//       //     return data;
+//       //   } else {
+//       //     throw Exception(data);
+//       //   }
 
-      var multipart = http.MultipartFile("media", fileReadStream, file.size,
-          filename: file.name);
+//       LocalUploader chunkedUploader =
+//           LocalUploader(Dio(BaseOptions(baseUrl: uri)));
+//       // try {
+//       Response? response = await chunkedUploader.upload(
+//           uri: uri,
+//           fileKey: "media",
+//           file: fileReadStream.asBroadcastStream(),
+//           fileName: file.name,
+//           fileSize: file.size,
+//           // maxChunkSize: 100000000,
+//           maxChunkSize: 500000,
+//           onUploadProgress: onProgress);
 
-      var requestMultipart =
-          LocalMultipartRequest("POST", url, onProgress: onProgress);
+//       if (response != null && response.statusCode! ~/ 100 == 2) {
+//         return response.data;
+//       } else {
+//         throw Exception(data);
+//       }
+//       // } on DioError catch (e) {
+//       //   print(e);
+//       // }
+//     } else {
+//       throw Exception("Cannot read file from stream");
+//     }
+//   }
+// }
 
-      requestMultipart.files.add(multipart);
+// class LocalMultipartRequest extends http.MultipartRequest {
+//   /// Creates a new [LocalMultipartRequest].
+//   LocalMultipartRequest(
+//     String method,
+//     Uri url, {
+//     this.onProgress,
+//   }) : super(method, url);
 
-      // await request.addStream(streamUpload);
+//   final void Function(int bytes, int totalBytes)? onProgress;
 
-      // final httpResponse = await request.close();
+//   /// Freezes all mutable fields and returns a single-subscription [ByteStream]
+//   /// that will emit the request body.
+//   @override
+//   http.ByteStream finalize() {
+//     final byteStream = super.finalize();
+//     if (onProgress == null) return byteStream;
 
-      var httpResponse = await requestMultipart.send();
-      var body = await httpResponse.stream.toBytes();
-      var data = String.fromCharCodes(body);
+//     final total = contentLength;
+//     int bytes = 0;
 
-      if (httpResponse.statusCode ~/ 100 == 2) {
-        return data;
-      } else {
-        throw Exception(data);
-      }
-    } else {
-      throw Exception("Cannot read file from stream");
-    }
-  }
-}
+//     final t = StreamTransformer.fromHandlers(
+//       handleData: (List<int> data, EventSink<List<int>> sink) {
+//         bytes += data.length;
 
-class LocalMultipartRequest extends http.MultipartRequest {
-  /// Creates a new [LocalMultipartRequest].
-  LocalMultipartRequest(
-    String method,
-    Uri url, {
-    this.onProgress,
-  }) : super(method, url);
+//         if (onProgress != null) {
+//           onProgress!(bytes, total);
+//         }
 
-  final void Function(int bytes, int totalBytes)? onProgress;
-
-  /// Freezes all mutable fields and returns a single-subscription [ByteStream]
-  /// that will emit the request body.
-  @override
-  http.ByteStream finalize() {
-    final byteStream = super.finalize();
-    if (onProgress == null) return byteStream;
-
-    final total = contentLength;
-    int bytes = 0;
-
-    final t = StreamTransformer.fromHandlers(
-      handleData: (List<int> data, EventSink<List<int>> sink) {
-        bytes += data.length;
-
-        if (onProgress != null) {
-          onProgress!(bytes, total);
-        }
-
-        if (total >= bytes) {
-          sink.add(data);
-        }
-      },
-    );
-    final stream = byteStream.transform(t);
-    return http.ByteStream(stream);
-  }
+//         if (total >= bytes) {
+//           sink.add(data);
+//         }
+//       },
+//     );
+//     final stream = byteStream.transform(t);
+//     return http.ByteStream(stream);
+//   }
 }

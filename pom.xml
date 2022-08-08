@@ -9,7 +9,7 @@
 	</parent>
 	<groupId>com.dm</groupId>
 	<artifactId>big-data</artifactId>
-	<version>0.6.4</version>
+	<version>0.6.5</version>
 	<name>dm-big-data</name>
 	<description>Demo project Big Data search</description>
 	<properties>
@@ -76,7 +76,7 @@
 		</dependency>
 
 		<!-- https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-client -->
-		<dependency>
+		<!-- <dependency>
 			<groupId>org.apache.hadoop</groupId>
 			<artifactId>hadoop-client</artifactId>
 			<version>3.2.4</version>
@@ -85,21 +85,34 @@
 			<groupId>org.apache.hadoop</groupId>
 			<artifactId>hadoop-common</artifactId>
 			<version>3.2.4</version>
-		</dependency>
+		</dependency> -->
 
-		<dependency>
+		<!-- <dependency>
 			<groupId>io.delta</groupId>
 			<artifactId>delta-core_2.12</artifactId>
 			<version>1.2.1</version>
-			<!-- <scope>provided</scope> -->
-		</dependency>
+		</dependency> -->
 
 		<!-- SQL Databases-->
 
-		<dependency>
+		<!-- <dependency>
 			<groupId>org.apache.derby</groupId>
 			<artifactId>derby</artifactId>
+		</dependency> -->
+
+		<!-- https://mvnrepository.com/artifact/mysql/mysql-connector-java -->
+		<!-- <dependency>
+			<groupId>mysql</groupId>
+			<artifactId>mysql-connector-java</artifactId>
+			<version>8.0.30</version>
+		</dependency> -->
+		<!-- https://mvnrepository.com/artifact/mysql/mysql-connector-java -->
+		<dependency>
+			<groupId>mysql</groupId>
+			<artifactId>mysql-connector-java</artifactId>
+			<version>8.0.30</version>
 		</dependency>
+
 
 	</dependencies>
 

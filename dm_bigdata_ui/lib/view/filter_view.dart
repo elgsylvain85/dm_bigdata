@@ -12,7 +12,7 @@ class FilterView extends StatefulWidget {
   // final _multiSelectFilesNamesKey1 = GlobalKey<FormFieldState>();
   // final _dropdownColumnsFilter = <GlobalKey<FormFieldState>>[];
   // final _textFieldColumnsFilter = <GlobalKey<FormFieldState>>[];
-  var sources = <String>[];
+  var sources = <String?>[];
   var columnsFilters = <String>[];
   var valuesFilters = <String>[];
 
@@ -44,30 +44,30 @@ class _FilterViewState extends State<FilterView> {
   Widget build(BuildContext context) {
     dynamic item;
 
-    /* Files names items */
+    /* Sources items */
 
-    var filesNamesImportedItems = <DropdownMenuItem<String?>>[];
-    var filesNamesImportedItems1 = <MultiSelectItem<String>>[];
+    // var filesNamesImportedItems = <DropdownMenuItem<String?>>[];
+    var sourcesItemns = <MultiSelectItem<String?>>[];
 
-    item = const DropdownMenuItem<String?>(
-      value: null,
-      child: Text("ALL"),
+    item = MultiSelectItem<String?>(
+      null,
+      "ALL",
     );
 
-    filesNamesImportedItems.add(item);
+    sourcesItemns.add(item);
 
     for (var e in widget.sourcesList) {
-      var fileName = e.split('/').last; // short file name
+      // var fileName = e.split('/').last; // short file name
 
-      var item = DropdownMenuItem<String?>(
-        value: e,
-        child: Text(fileName),
-      );
+      // item = DropdownMenuItem<String?>(
+      //   value: e,
+      //   child: Text(fileName),
+      // );
 
-      var item1 = MultiSelectItem<String>(e, fileName);
+      item = MultiSelectItem<String>(e, e);
 
-      filesNamesImportedItems.add(item);
-      filesNamesImportedItems1.add(item1);
+      // filesNamesImportedItems.add(item);
+      sourcesItemns.add(item);
     }
 
     /* Build */
@@ -98,7 +98,7 @@ class _FilterViewState extends State<FilterView> {
             padding: const EdgeInsets.symmetric(vertical: 10),
             child: Column(
               children: [
-                MultiSelectDialogField<String>(
+                MultiSelectDialogField<String?>(
                   key: GlobalKey<FormFieldState>(),
                   initialValue: widget.sources,
                   searchHint: "ALL",
@@ -108,7 +108,7 @@ class _FilterViewState extends State<FilterView> {
                     border: Border.all(),
                   ),
                   listType: MultiSelectListType.LIST,
-                  items: filesNamesImportedItems1,
+                  items: sourcesItemns,
                   onConfirm: (value) {
                     widget.sources.clear();
                     widget.sources.addAll(value);
@@ -267,14 +267,16 @@ class _FilterViewState extends State<FilterView> {
     // String? fileName = widget._dropdownFilesNamesKey.currentState?.value;
 
     for (var source in widget.sources) {
-      var expr =
-          widget._utilities.filterExpression(Utilities.sourceColumn, source);
+      if (source != null) {
+        var expr =
+            widget._utilities.filterExpression(Utilities.sourceColumn, source);
 
-      if (sourcesExpr != null && sourcesExpr.trim().isNotEmpty) {
-        //use AND SQL expression
-        sourcesExpr = "$sourcesExpr and $expr";
-      } else {
-        sourcesExpr = expr;
+        if (sourcesExpr != null && sourcesExpr.trim().isNotEmpty) {
+          //use AND SQL expression
+          sourcesExpr = "$sourcesExpr and $expr";
+        } else {
+          sourcesExpr = expr;
+        }
       }
     }
 
@@ -318,7 +320,8 @@ class _FilterViewState extends State<FilterView> {
 
         // /* to link dynamically to filter component */
 
-        widget.columnsFilters.add(widget.columnsNamesList[widget.filtersCount]);
+        widget.columnsFilters
+            .add(widget.columnsNamesList[widget.filtersCount - 1]);
         widget.valuesFilters.add("");
       }
     });
