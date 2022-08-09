@@ -356,7 +356,7 @@ class _SettingViewState extends State<SettingView> {
                   key: GlobalKey<FormFieldState>(),
                   // initialValue: widget.joinSourcesToApply,
                   searchHint: "Join To Apply",
-                  buttonText: const Text("Join Source to apply"),
+                  buttonText: const Text("Apply Join Source"),
                   decoration: BoxDecoration(
                     border: Border.all(),
                   ),

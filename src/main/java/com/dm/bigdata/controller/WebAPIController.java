@@ -136,8 +136,7 @@ public class WebAPIController {
     @PostMapping(value = "/importfile")
     public ResponseEntity<?> importFile(@RequestParam String filePath, @RequestParam(required = false) String source,
             @RequestParam String columnsMapping, @RequestParam(required = false, defaultValue = ",") String delimiter,
-            @RequestParam(required = false, defaultValue = "false") Boolean excludeHeader
-            ) {
+            @RequestParam(required = false, defaultValue = "false") Boolean excludeHeader) {
         try {
 
             Map<String, String> structure = this.jsonMapper.readValue(columnsMapping, Map.class);
@@ -147,10 +146,7 @@ public class WebAPIController {
             new Thread(() -> {
                 try {
 
-                   
-
-                    this.sparkService.prepareImportFile(filePath, source, structure, delimiter, excludeHeader
-                            );
+                    this.sparkService.prepareImportFile(filePath, source, structure, delimiter, excludeHeader);
                 } catch (Exception ex) {
                     LOGGER.log(Level.SEVERE, "Job import Error", ex);
                 }
@@ -167,10 +163,6 @@ public class WebAPIController {
     public ResponseEntity<?> applyJoinSources(@RequestParam(required = false) String sources) {
         try {
 
-            
-
-           
-
             /* apply join as independent job (thread) */
 
             new Thread(() -> {
@@ -186,15 +178,15 @@ public class WebAPIController {
 
                         /* if source is null then get all sources */
 
-                        sourcesToApply =  this.sparkService.tablesImported().stream().map(
-                            new Function<TableImported, String>() {
-        
-                                @Override
-                                public String apply(TableImported t) {
-                                    return t.getTableName();
-                                }
-        
-                            }).collect(Collectors.toList());
+                        sourcesToApply = this.sparkService.tablesImported().stream().map(
+                                new Function<TableImported, String>() {
+
+                                    @Override
+                                    public String apply(TableImported t) {
+                                        return t.getTableName();
+                                    }
+
+                                }).collect(Collectors.toList());
                     }
 
                     this.sparkService.prepareJoinSources(sourcesToApply);

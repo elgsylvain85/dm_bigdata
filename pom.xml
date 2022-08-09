@@ -9,7 +9,7 @@
 	</parent>
 	<groupId>com.dm</groupId>
 	<artifactId>big-data</artifactId>
-	<version>0.6.5</version>
+	<version>0.6.6</version>
 	<name>dm-big-data</name>
 	<description>Demo project Big Data search</description>
 	<properties>

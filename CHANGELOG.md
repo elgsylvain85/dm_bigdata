@@ -88,7 +88,16 @@
 
 - Inclure driver-memory dans ./config/applications.properties
 
-## 0.6.5 :
+## 0.6.5 : 08 Aout 2022
 
 - Approche JDBC
+
+## 0.6.6 :
+
+- Optimisation
+
+## 0.6.7 :
+
+- Indexation
+- Limit champ à 100 caracteres
 

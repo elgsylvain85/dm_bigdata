@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -254,12 +255,13 @@ public class SparkService {
         SparkService.dataStatus.put(sourceName,
                 new String[] { sourceName, "-", "PREPARING", });
 
-                var fileSize = Paths.get(path).toFile().length();
-                var partition = (int)(fileSize / 200000000);//200 Mb per partition
+        var fileSize = Paths.get(path).toFile().length();
+        var partition = (int) (fileSize / 50000000);// 50 Mb per partition
+        var batchSize = 100000;
 
-                if(partition < 1){
-                    partition = 1;
-                }
+        if (partition < 1) {
+            partition = 1;
+        }
 
         var dataFrameReader = instance.sparkSession.read();
 
@@ -379,7 +381,9 @@ public class SparkService {
 
             /* Append data imported with existant table */
 
-            dataImport.repartition(partition).write()
+            dataImport
+                    // .repartition(partition)
+                    .write()
                     .format("jdbc")
                     .mode(SaveMode.Append)
                     .option("overwriteSchema", "true")
@@ -387,6 +391,8 @@ public class SparkService {
                     .option("dbtable", sourceName)// "dbo.Employees2"
                     .option("user", instance.springDatasourceUsername)
                     .option("password", instance.springDatasourcePassword)
+                    .option("batchsize", batchSize)
+                    .option("numPartitions", partition)
                     .save();
 
             dataImport.unpersist(true);
@@ -403,7 +409,9 @@ public class SparkService {
 
             /* write data imported directly as base */
 
-            dataImport.repartition(partition).write()
+            dataImport
+                    // .repartition(partition)
+                    .write()
                     .format("jdbc")
                     .mode(SaveMode.Overwrite)
                     .option("overwriteSchema", "true")
@@ -411,6 +419,8 @@ public class SparkService {
                     .option("dbtable", sourceName)// "dbo.Employees2"
                     .option("user", instance.springDatasourceUsername)
                     .option("password", instance.springDatasourcePassword)
+                    .option("batchsize", batchSize)
+                    .option("numPartitions", partition)
                     .save();
 
             dataImport.unpersist(true);
@@ -1114,6 +1124,8 @@ public class SparkService {
         for (var f : this.filesToImport()) {
             result.add(f.getAbsolutePath());
         }
+
+        Collections.sort(result);
 
         return result;
     }
